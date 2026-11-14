@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from microservicios.usuarios.api.usuarios_api import router as usuarios_router
+from microservicios.usuarios.api.usuarioApi import router as usuarios_router
 
 app = FastAPI(
     title="Sistema de Gestión de Ventas e Inventario",
