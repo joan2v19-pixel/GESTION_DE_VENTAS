@@ -1,14 +1,19 @@
 from fastapi import FastAPI
+from microservicios.usuarios.api.usuarios_api import router as usuarios_router
 
 app = FastAPI(
-    title="Proyecto Web Services",
-    description="API desarrollada con arquitectura de microservicios",
+    title="Sistema de Gestión de Ventas e Inventario",
+    description="Web Services para la gestión de usuarios",
     version="1.0.0"
 )
+
+# Registrar microservicio de usuarios
+app.include_router(usuarios_router)
+
 
 @app.get("/")
 def inicio():
     return {
-        "mensaje": "Bienvenido al proyecto Web Services",
+        "mensaje": "Sistema de Gestión de Ventas e Inventario",
         "estado": "Funcionando correctamente"
     }
