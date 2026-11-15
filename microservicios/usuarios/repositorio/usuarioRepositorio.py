@@ -1,6 +1,9 @@
 # Lista de usuarios almacenados en memoria
 usuarios = []
 
+# Diccionario de sesiones activas
+sesiones = {}
+
 
 def RegistrarUsuarioRepositorio(usuario: dict):
     nuevo_id = max(
@@ -62,3 +65,30 @@ def ObtenerUsuarioPorNombreUsuarioRepositorio(nombre_usuario: str):
             return usuario
 
     return None
+
+# Crear una sesión
+def CrearSesionRepositorio(token: str, id_usuario: int, fecha_expiracion):
+
+    sesiones[token] = {
+        "id_usuario": id_usuario,
+        "fecha_expiracion": fecha_expiracion
+    }
+
+    return sesiones[token]
+
+
+# Consultar una sesión
+def ObtenerSesionRepositorio(token: str):
+
+    return sesiones.get(token)
+
+
+# Eliminar una sesión
+def EliminarSesionRepositorio(token: str):
+
+    if token in sesiones:
+        del sesiones[token]
+
+        return True
+
+    return False

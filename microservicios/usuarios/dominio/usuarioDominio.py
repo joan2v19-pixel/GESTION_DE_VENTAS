@@ -1,5 +1,7 @@
 from pwdlib import PasswordHash
 from microservicios.usuarios.repositorio import usuarioRepositorio
+from datetime import datetime, timedelta, timezone
+import secrets
 
 password_hash = PasswordHash.recommended()
 
@@ -22,7 +24,7 @@ def RegistrarUsuarioDominio(usuario: dict):
     usuario["contrasena"] = password_hash.hash(
         usuario["contrasena"]
     )
-
+    usuario["estado"] = True
     return usuarioRepositorio.RegistrarUsuarioRepositorio(usuario)
 
 
@@ -72,18 +74,75 @@ def ConsultarUsuariosDominio():
     return usuarios_consultados
 
 def IniciarSesionDominio(nombre_usuario: str, contrasena: str):
+
     usuario = usuarioRepositorio.ObtenerUsuarioPorNombreUsuarioRepositorio(
         nombre_usuario
     )
 
-    if usuario is None:
+    # Verificar que el usuario exista y la contraseña sea correcta
+    if usuario is None or not password_hash.verify(
+        contrasena, usuario["contrasena"]
+    ):
         raise ValueError("Usuario o contraseña incorrectos")
 
-    if not password_hash.verify(contrasena, usuario["contrasena"]):
-        raise ValueError("Usuario o contraseña incorrectos")
+    # Verificar que la cuenta esté activa
+    if not usuario.get("estado", True):
+        raise PermissionError("La cuenta se encuentra inactiva")
+
+    # Generar identificador seguro para la sesión
+    token = secrets.token_urlsafe(32)
+
+    # Establecer expiración de 30 minutos
+    fecha_expiracion = datetime.now(timezone.utc) + timedelta(minutes=30)
+
+    # Guardar la sesión
+    usuarioRepositorio.CrearSesionRepositorio(
+        token,
+        usuario["id"],
+        fecha_expiracion
+    )
+
+    return {
+        "token": token,
+        "usuario": {
+            "id": usuario["id"],
+            "nombre": usuario["nombre"],
+            "nombreUsuario": usuario["nombreUsuario"]
+        }
+    }
+
+def ValidarSesionDominio(token: str):
+
+    sesion = usuarioRepositorio.ObtenerSesionRepositorio(token)
+
+    if sesion is None:
+        raise ValueError("La sesión no es válida")
+
+    # Verificar expiración
+    if datetime.now(timezone.utc) >= sesion["fecha_expiracion"]:
+
+        usuarioRepositorio.EliminarSesionRepositorio(token)
+
+        raise ValueError("La sesión ha expirado")
+
+    # Consultar usuario asociado a la sesión
+    usuario = usuarioRepositorio.ObtenerUsuarioPorIdRepositorio(
+        sesion["id_usuario"]
+    )
+
+    if usuario is None or not usuario.get("estado", True):
+
+        usuarioRepositorio.EliminarSesionRepositorio(token)
+
+        raise PermissionError("La cuenta no está habilitada")
 
     return {
         "id": usuario["id"],
         "nombre": usuario["nombre"],
         "nombreUsuario": usuario["nombreUsuario"]
     }
+
+
+def CerrarSesionDominio(token: str):
+
+    return usuarioRepositorio.EliminarSesionRepositorio(token)

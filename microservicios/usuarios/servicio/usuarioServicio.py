@@ -20,3 +20,21 @@ def IniciarSesionServicio(nombre_usuario: str, contrasena: str):
         nombre_usuario,
         contrasena
     )
+
+
+def ValidarSesionServicio(token: str):
+
+    return usuarioDominio.ValidarSesionDominio(token)
+
+
+def CerrarSesionServicio(token: str):
+
+    return usuarioDominio.CerrarSesionDominio(token)
+
+
+def IniciarSesionServicio(nombre_usuario: str, contrasena: str):
+
+    return usuarioDominio.IniciarSesionDominio(
+        nombre_usuario,
+        contrasena
+    )

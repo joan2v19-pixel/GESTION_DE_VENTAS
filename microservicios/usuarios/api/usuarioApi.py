@@ -1,7 +1,22 @@
-from fastapi import APIRouter, HTTPException, status
+
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    status,
+    Response,
+    Cookie,
+    Depends
+)
+
 from pydantic import BaseModel, Field, ConfigDict
+from typing import Annotated
 
 from microservicios.usuarios.servicio import usuarioServicio
+from microservicios.usuarios.api.dtos import (
+    UsuarioRegistro,
+    UsuarioActualizar,
+    UsuarioLogin
+)
 
 
 router = APIRouter(
@@ -9,41 +24,31 @@ router = APIRouter(
     tags=["Gestión de usuarios"]
 )
 
+# Validar que exista una sesión activa
+def ObtenerUsuarioAutenticado(
+    sesion: Annotated[str | None, Cookie(alias="sesion")] = None
+):
 
-# Modelo para registrar usuarios
-class UsuarioRegistro(BaseModel):
-    nombre: str = Field(..., min_length=3, max_length=100)
-    identificacion: str = Field(..., min_length=5, max_length=20)
-    nombreUsuario: str = Field(..., min_length=3, max_length=30)
-    contrasena: str = Field(..., min_length=8, max_length=128)
+    if not sesion:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="DEBE INICIAR SESIÓN PARA ACCEDER."
+        )
 
-    model_config = ConfigDict(
-        str_strip_whitespace=True,
-        extra="forbid"
-    )
+    try:
+        return usuarioServicio.ValidarSesionServicio(sesion)
 
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="LA CUENTA NO SE ENCUENTRA HABILITADA."
+        )
 
-# Modelo para actualizar usuarios
-class UsuarioActualizar(BaseModel):
-    nombre: str = Field(..., min_length=3, max_length=100)
-    identificacion: str = Field(..., min_length=5, max_length=20)
-    nombreUsuario: str = Field(..., min_length=3, max_length=30)
-
-    model_config = ConfigDict(
-        str_strip_whitespace=True,
-        extra="forbid"
-    )
-
-
-# Modelo para iniciar sesión
-class UsuarioLogin(BaseModel):
-    nombreUsuario: str = Field(..., min_length=3, max_length=30)
-    contrasena: str = Field(..., min_length=8, max_length=128)
-
-    model_config = ConfigDict(
-        str_strip_whitespace=True,
-        extra="forbid"
-    )
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="LA SESIÓN NO ES VÁLIDA O HA EXPIRADO."
+        )
 
 
 # Endpoint para registrar usuarios
@@ -56,7 +61,7 @@ def RegistrarUsuarioAPI(usuario: UsuarioRegistro):
         )
 
         return {
-            "mensaje": "Usuario registrado correctamente",
+            "mensaje": "USUARIO REGISTRADO CORRECTAMENTE.",
             "data": {
                 "id": nuevo_usuario["id"],
                 "nombre": nuevo_usuario["nombre"],
@@ -77,7 +82,8 @@ def RegistrarUsuarioAPI(usuario: UsuarioRegistro):
 @router.put("/{id_usuario}")
 def ActualizarUsuarioAPI(
     id_usuario: int,
-    datos: UsuarioActualizar
+    datos: UsuarioActualizar,
+    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
 ):
 
     try:
@@ -87,19 +93,20 @@ def ActualizarUsuarioAPI(
         )
 
         return {
-            "mensaje": "La información del usuario se actualizó correctamente.",
+            "mensaje": "LA INFORMACIÓN DEL USUARIO SE ACTUALIZÓ CORRECTAMENTE.",
             "usuario": {
                 "id": usuario_actualizado["id"],
                 "nombre": usuario_actualizado["nombre"],
                 "identificacion": usuario_actualizado["identificacion"],
                 "nombreUsuario": usuario_actualizado["nombreUsuario"]
-            }
+            },
+            "success": True
         }
 
     except LookupError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No se encontró el usuario solicitado."
+            detail="NO SE ENCONTRÓ EL USUARIO SOLICITADO."
         )
 
     except ValueError as error:
@@ -108,9 +115,12 @@ def ActualizarUsuarioAPI(
             detail=str(error)
         )
 
+
 # Endpoint para consultar todos los usuarios
 @router.get("/")
-def ConsultarUsuariosAPI():
+def ConsultarUsuariosAPI(
+    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+):
 
     try:
         usuarios = usuarioServicio.ConsultarUsuariosServicio()
@@ -120,36 +130,91 @@ def ConsultarUsuariosAPI():
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No fue posible consultar los usuarios."
+            detail="NO FUE POSIBLE CONSULTAR LOS USUARIOS."
         )
 
 
 # Endpoint para iniciar sesión
 @router.post("/login")
-def IniciarSesionAPI(datos: UsuarioLogin):
+def IniciarSesionAPI(
+    datos: UsuarioLogin,
+    response: Response
+):
 
     try:
-        usuario = usuarioServicio.IniciarSesionServicio(
+        resultado = usuarioServicio.IniciarSesionServicio(
             datos.nombreUsuario,
             datos.contrasena
         )
 
+        # Crear cookie con el identificador de sesión
+        response.set_cookie(
+            key="sesion",
+            value=resultado["token"],
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=1800,
+            path="/api/Usuarios"
+        )
+
         return {
-            "mensaje": "Inicio de sesión exitoso",
+            "mensaje": "INICIO DE SESIÓN EXITOSO.",
             "success": True,
-            "data": usuario
+            "data": resultado["usuario"]
         }
+
+    except PermissionError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="LA CUENTA NO SE ENCUENTRA HABILITADA PARA ACCEDER AL SISTEMA."
+        )
 
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos"
+            detail="USUARIO O CONTRASEÑA INCORRECTOS."
         )
 
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No fue posible completar la autenticación"
+            detail="NO FUE POSIBLE COMPLETAR LA AUTENTICACIÓN."
         )
 
 
+# Endpoint para consultar el usuario autenticado
+@router.get("/sesion")
+def ConsultarSesionAPI(
+    usuario: dict = Depends(ObtenerUsuarioAutenticado)
+):
+
+    return {
+        "mensaje": "SESIÓN ACTIVA.",
+        "success": True,
+        "data": usuario
+    }
+
+
+# Endpoint para cerrar sesión
+@router.post("/logout")
+def CerrarSesionAPI(
+    response: Response,
+    sesion: Annotated[str | None, Cookie(alias="sesion")] = None
+):
+
+    if sesion:
+        usuarioServicio.CerrarSesionServicio(sesion)
+
+    response.delete_cookie(
+        key="sesion",
+        path="/api/Usuarios",
+        httponly=True,
+        secure=False,
+        samesite="lax"
+    )
+
+    return {
+        "mensaje": "SESIÓN CERRADA CORRECTAMENTE.",
+        "success": True
+    }
