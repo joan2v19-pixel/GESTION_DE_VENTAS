@@ -37,3 +37,60 @@ def RegistrarClienteAPI(datos: ClienteRegistro):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="NO FUE POSIBLE COMPLETAR EL REGISTRO DEL CLIENTE."
         )
+
+
+
+# Consultar todos los clientes
+@router.get("/")
+def ConsultarClientesAPI():
+
+    try:
+        clientes = clienteServicio.ConsultarClientesServicio()
+
+        if not clientes:
+            return {
+                "mensaje": "NO HAY CLIENTES REGISTRADOS.",
+                "data": [],
+                "success": True
+            }
+
+        return {
+            "mensaje": "CONSULTA DE CLIENTES EXITOSA.",
+            "data": clientes,
+            "success": True
+        }
+
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="NO FUE POSIBLE CONSULTAR LOS CLIENTES."
+        )
+
+
+# Consultar un cliente por ID
+@router.get("/{id}")
+def ObtenerClientePorIdAPI(id: int):
+
+    try:
+        cliente = clienteServicio.ObtenerClientePorIdServicio(id)
+
+        if cliente is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="NO SE ENCONTRÓ EL CLIENTE SOLICITADO."
+            )
+
+        return {
+            "mensaje": "CONSULTA DEL CLIENTE EXITOSA.",
+            "data": cliente,
+            "success": True
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="NO FUE POSIBLE CONSULTAR EL CLIENTE."
+        )

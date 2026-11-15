@@ -22,3 +22,17 @@ def ObtenerClientePorIdentificacionRepositorio(identificacion: str):
             return cliente
 
     return None
+
+
+# Consultar todos los clientes
+def ConsultarClientesRepositorio():
+    return clientes
+
+
+# Consultar un cliente por ID
+def ObtenerClientePorIdRepositorio(id: int):
+    for cliente in clientes:
+        if cliente["id"] == id:
+            return cliente
+
+    return None

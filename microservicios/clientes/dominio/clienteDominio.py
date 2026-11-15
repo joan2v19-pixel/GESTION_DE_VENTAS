@@ -15,3 +15,13 @@ def RegistrarClienteDominio(datos_cliente: dict):
 
     # Registrar el cliente
     return clienteRepositorio.RegistrarClienteRepositorio(datos_cliente)
+
+
+# Consultar todos los clientes
+def ConsultarClientesDominio():
+    return clienteRepositorio.ConsultarClientesRepositorio()
+
+
+# Consultar un cliente por ID
+def ObtenerClientePorIdDominio(id: int):
+    return clienteRepositorio.ObtenerClientePorIdRepositorio(id)
