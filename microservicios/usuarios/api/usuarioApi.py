@@ -35,6 +35,17 @@ class UsuarioActualizar(BaseModel):
     )
 
 
+# Modelo para iniciar sesión
+class UsuarioLogin(BaseModel):
+    nombreUsuario: str = Field(..., min_length=3, max_length=30)
+    contrasena: str = Field(..., min_length=8, max_length=128)
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid"
+    )
+
+
 # Endpoint para registrar usuarios
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def RegistrarUsuarioAPI(usuario: UsuarioRegistro):
@@ -96,3 +107,49 @@ def ActualizarUsuarioAPI(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(error)
         )
+
+# Endpoint para consultar todos los usuarios
+@router.get("/")
+def ConsultarUsuariosAPI():
+
+    try:
+        usuarios = usuarioServicio.ConsultarUsuariosServicio()
+
+        return usuarios
+
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No fue posible consultar los usuarios."
+        )
+
+
+# Endpoint para iniciar sesión
+@router.post("/login")
+def IniciarSesionAPI(datos: UsuarioLogin):
+
+    try:
+        usuario = usuarioServicio.IniciarSesionServicio(
+            datos.nombreUsuario,
+            datos.contrasena
+        )
+
+        return {
+            "mensaje": "Inicio de sesión exitoso",
+            "success": True,
+            "data": usuario
+        }
+
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario o contraseña incorrectos"
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No fue posible completar la autenticación"
+        )
+
+

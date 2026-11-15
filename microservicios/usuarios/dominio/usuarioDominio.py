@@ -54,3 +54,36 @@ def ActualizarUsuarioDominio(id_usuario: int, nuevos_datos: dict):
         id_usuario,
         nuevos_datos
     )
+
+def ConsultarUsuariosDominio():
+
+    usuarios = usuarioRepositorio.ObtenerTodosUsuariosRepositorio()
+
+    usuarios_consultados = []
+
+    for usuario in usuarios:
+        usuarios_consultados.append({
+            "id": usuario["id"],
+            "nombre": usuario["nombre"],
+            "identificacion": usuario["identificacion"],
+            "nombreUsuario": usuario["nombreUsuario"]
+        })
+
+    return usuarios_consultados
+
+def IniciarSesionDominio(nombre_usuario: str, contrasena: str):
+    usuario = usuarioRepositorio.ObtenerUsuarioPorNombreUsuarioRepositorio(
+        nombre_usuario
+    )
+
+    if usuario is None:
+        raise ValueError("Usuario o contraseña incorrectos")
+
+    if not password_hash.verify(contrasena, usuario["contrasena"]):
+        raise ValueError("Usuario o contraseña incorrectos")
+
+    return {
+        "id": usuario["id"],
+        "nombre": usuario["nombre"],
+        "nombreUsuario": usuario["nombreUsuario"]
+    }

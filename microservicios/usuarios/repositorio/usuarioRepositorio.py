@@ -55,3 +55,10 @@ def ActualizarUsuarioRepositorio(id_usuario: int, nuevos_datos: dict):
             return usuario
 
     return None
+
+def ObtenerUsuarioPorNombreUsuarioRepositorio(nombre_usuario: str):
+    for usuario in usuarios:
+        if usuario["nombreUsuario"].lower() == nombre_usuario.lower():
+            return usuario
+
+    return None

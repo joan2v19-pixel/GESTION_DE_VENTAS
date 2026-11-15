@@ -10,3 +10,13 @@ def ActualizarUsuarioServicio(id_usuario: int, nuevos_datos: dict):
         id_usuario,
         nuevos_datos
     )
+
+def ConsultarUsuariosServicio():
+    return usuarioDominio.ConsultarUsuariosDominio()
+
+
+def IniciarSesionServicio(nombre_usuario: str, contrasena: str):
+    return usuarioDominio.IniciarSesionDominio(
+        nombre_usuario,
+        contrasena
+    )
