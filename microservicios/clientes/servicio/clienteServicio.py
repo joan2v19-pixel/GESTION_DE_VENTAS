@@ -2,6 +2,7 @@
 from microservicios.clientes.dominio import clienteDominio
 
 
+
 # Registrar un cliente
 def RegistrarClienteServicio(datos_cliente: dict):
     return clienteDominio.RegistrarClienteDominio(datos_cliente)
@@ -16,6 +17,10 @@ def ConsultarClientesServicio():
 def ObtenerClientePorIdServicio(id: int):
     return clienteDominio.ObtenerClientePorIdDominio(id)
 
+
+# Actualizar un cliente
+def ActualizarClienteServicio(id: int, datos_cliente: dict):
+    return clienteDominio.ActualizarClienteDominio(id, datos_cliente)
 
 
 # Buscar clientes por diferentes criterios

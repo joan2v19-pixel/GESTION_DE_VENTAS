@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, status, Depends
 from pydantic import EmailStr
 from microservicios.usuarios.api.usuarioApi import ObtenerUsuarioAutenticado
 
-from microservicios.clientes.api.dtos import ClienteRegistro
+from microservicios.clientes.api.dtos import ClienteRegistro, ClienteActualizar
 from microservicios.clientes.servicio import clienteServicio
 
 
@@ -144,4 +144,42 @@ def ObtenerClientePorIdAPI(id: int,
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="NO FUE POSIBLE CONSULTAR EL CLIENTE."
+        )
+
+
+# Actualizar un cliente
+@router.put("/{id}", status_code=status.HTTP_200_OK)
+def ActualizarClienteAPI(
+    id: int,
+    datos: ClienteActualizar,
+    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+):
+    try:
+        cliente = clienteServicio.ActualizarClienteServicio(
+            id,
+            datos.model_dump()
+        )
+
+        return {
+            "mensaje": "CLIENTE ACTUALIZADO EXITOSAMENTE.",
+            "data": cliente,
+            "success": True
+        }
+
+    except LookupError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error)
+        )
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error)
+        )
+
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="NO FUE POSIBLE COMPLETAR LA ACTUALIZACIÓN DEL CLIENTE."
         )

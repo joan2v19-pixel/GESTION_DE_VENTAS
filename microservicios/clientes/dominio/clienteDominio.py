@@ -41,3 +41,23 @@ def BuscarClientesDominio(
         telefono,
         correo
     )
+
+# Actualizar un cliente
+def ActualizarClienteDominio(id: int, datos_cliente: dict):
+
+    # Verificar que el cliente exista
+    cliente_existente = clienteRepositorio.ObtenerClientePorIdRepositorio(id)
+
+    if cliente_existente is None:
+        raise LookupError("NO SE ENCONTRÓ EL CLIENTE SOLICITADO.")
+
+    # Verificar que la identificación no pertenezca a otro cliente
+    cliente_identificacion = clienteRepositorio.ObtenerClientePorIdentificacionRepositorio(
+        datos_cliente["identificacion"]
+    )
+
+    if cliente_identificacion and cliente_identificacion["id"] != id:
+        raise ValueError("LA IDENTIFICACIÓN YA SE ENCUENTRA REGISTRADA.")
+
+    # Actualizar el cliente
+    return clienteRepositorio.ActualizarClienteRepositorio(id, datos_cliente)

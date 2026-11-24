@@ -65,3 +65,15 @@ def BuscarClientesRepositorio(
         resultados.append(cliente)
 
     return resultados
+
+# Actualizar un cliente
+def ActualizarClienteRepositorio(id: int, datos_cliente: dict):
+
+    cliente = ObtenerClientePorIdRepositorio(id)
+
+    if cliente is None:
+        return None
+
+    cliente.update(datos_cliente)
+
+    return cliente
