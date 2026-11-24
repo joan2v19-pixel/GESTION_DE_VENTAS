@@ -26,3 +26,12 @@ def ObtenerProveedorPorIdentificacionRepositorio(identificacion: str):
 # Consultar todos los proveedores
 def ConsultarProveedoresRepositorio():
     return proveedores
+
+
+# Consultar un proveedor por ID
+def ObtenerProveedorPorIdRepositorio(id: int):
+    for proveedor in proveedores:
+        if proveedor["id"] == id:
+            return proveedor
+
+    return None
