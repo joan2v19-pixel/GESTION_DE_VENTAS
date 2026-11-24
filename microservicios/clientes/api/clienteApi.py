@@ -1,5 +1,6 @@
-
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status, Depends
+from pydantic import EmailStr
+from microservicios.usuarios.api.usuarioApi import ObtenerUsuarioAutenticado
 
 from microservicios.clientes.api.dtos import ClienteRegistro
 from microservicios.clientes.servicio import clienteServicio
@@ -13,12 +14,10 @@ router = APIRouter(
 
 # Registrar un cliente
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def RegistrarClienteAPI(datos: ClienteRegistro):
-
+def RegistrarClienteAPI(datos: ClienteRegistro,
+    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado) ):
     try:
-        cliente = clienteServicio.RegistrarClienteServicio(
-            datos.model_dump()
-        )
+        cliente = clienteServicio.RegistrarClienteServicio(datos.model_dump())
 
         return {
             "mensaje": "CLIENTE REGISTRADO EXITOSAMENTE.",
@@ -39,11 +38,9 @@ def RegistrarClienteAPI(datos: ClienteRegistro):
         )
 
 
-
 # Consultar todos los clientes
 @router.get("/")
-def ConsultarClientesAPI():
-
+def ConsultarClientesAPI(usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)):
     try:
         clientes = clienteServicio.ConsultarClientesServicio()
 
@@ -67,10 +64,64 @@ def ConsultarClientesAPI():
         )
 
 
+# Buscar clientes por diferentes criterios
+@router.get("/buscar")
+def BuscarClientesAPI(
+    identificacion: str | None = Query(default=None, min_length=5, max_length=20),
+    nombre: str | None = Query(default=None, min_length=3, max_length=100),
+    telefono: str | None = Query(default=None, min_length=7, max_length=15),
+    correo: EmailStr | None = Query(default=None),
+    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+
+):
+    # Limpiar los criterios ingresados
+    identificacion = identificacion.strip() if identificacion else None
+    nombre = nombre.strip() if nombre else None
+    telefono = telefono.strip() if telefono else None
+    correo = str(correo).strip() if correo else None
+
+    # Verificar que se haya ingresado al menos un criterio
+    if not any([identificacion, nombre, telefono, correo]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="DEBE INGRESAR AL MENOS UN CRITERIO DE BÚSQUEDA."
+        )
+
+    try:
+        clientes = clienteServicio.BuscarClientesServicio(
+            identificacion,
+            nombre,
+            telefono,
+            correo
+        )
+
+        if not clientes:
+            return {
+                "mensaje": "NO SE ENCONTRARON CLIENTES CON LOS CRITERIOS INGRESADOS.",
+                "data": [],
+                "success": True
+            }
+
+        return {
+            "mensaje": "BÚSQUEDA DE CLIENTES EXITOSA.",
+            "data": clientes,
+            "success": True
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="NO FUE POSIBLE COMPLETAR LA BÚSQUEDA DE CLIENTES."
+        )
+
+
 # Consultar un cliente por ID
 @router.get("/{id}")
-def ObtenerClientePorIdAPI(id: int):
-
+def ObtenerClientePorIdAPI(id: int,
+    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)):
     try:
         cliente = clienteServicio.ObtenerClientePorIdServicio(id)
 

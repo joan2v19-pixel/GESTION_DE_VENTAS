@@ -26,7 +26,10 @@ router = APIRouter(
 
 # Validar que exista una sesión activa
 def ObtenerUsuarioAutenticado(
-    sesion: Annotated[str | None, Cookie(alias="sesion")] = None
+   sesion: Annotated[
+        str | None,
+        Cookie(alias="sesion", include_in_schema=False)
+    ] = None
 ):
 
     if not sesion:
@@ -155,7 +158,7 @@ def IniciarSesionAPI(
             secure=False,
             samesite="lax",
             max_age=1800,
-            path="/api/Usuarios"
+            path="/"
         )
 
         return {
@@ -208,7 +211,7 @@ def CerrarSesionAPI(
 
     response.delete_cookie(
         key="sesion",
-        path="/api/Usuarios",
+        path="/",
         httponly=True,
         secure=False,
         samesite="lax"

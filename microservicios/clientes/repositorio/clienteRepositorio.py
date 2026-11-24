@@ -36,3 +36,32 @@ def ObtenerClientePorIdRepositorio(id: int):
             return cliente
 
     return None
+
+
+
+# Buscar clientes por diferentes criterios
+def BuscarClientesRepositorio(
+    identificacion=None,
+    nombre=None,
+    telefono=None,
+    correo=None
+):
+    resultados = []
+
+    for cliente in clientes:
+
+        if identificacion and identificacion not in cliente["identificacion"]:
+            continue
+
+        if nombre and nombre.lower() not in cliente["nombre"].lower():
+            continue
+
+        if telefono and telefono not in cliente["telefono"]:
+            continue
+
+        if correo and correo.lower() not in cliente["correo"].lower():
+            continue
+
+        resultados.append(cliente)
+
+    return resultados

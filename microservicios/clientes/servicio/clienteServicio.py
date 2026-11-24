@@ -15,3 +15,19 @@ def ConsultarClientesServicio():
 # Consultar un cliente por ID
 def ObtenerClientePorIdServicio(id: int):
     return clienteDominio.ObtenerClientePorIdDominio(id)
+
+
+
+# Buscar clientes por diferentes criterios
+def BuscarClientesServicio(
+    identificacion=None,
+    nombre=None,
+    telefono=None,
+    correo=None
+):
+    return clienteDominio.BuscarClientesDominio(
+        identificacion,
+        nombre,
+        telefono,
+        correo
+    )
