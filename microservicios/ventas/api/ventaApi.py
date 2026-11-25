@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Body, Path, status, Depends
+from datetime import datetime
+from fastapi import APIRouter, Body, Path, Query, status, Depends
 from fastapi.responses import JSONResponse
 
+from microservicios.productos.api.dtos import PALABRAS_PROHIBIDAS
 from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
 from microservicios.ventas.api.dtos import (
     ConfirmarVentaSolicitud,
@@ -102,22 +104,175 @@ def RegistrarVentaAPI(
         )
 
 
-# CONSULTAR TODAS LAS VENTAS REGISTRADAS
+# CONSULTAR TODAS LAS VENTAS REGISTRADAS Y BUSCAR POR NÚMERO, CLIENTE O FECHA
 @router.get(
     "/",
     status_code=status.HTTP_200_OK,
-    summary="Consultar ventas registradas",
-    description="Obtiene el listado de ventas registradas con su estado y productos."
+    summary="Consultar y listar ventas registradas",
+    description=(
+        "Obtiene el listado de ventas registradas con su identificador, fecha, "
+        "información del cliente y valor total. Permite filtrar opcionalmente por "
+        "número de venta, nombre/identificación del cliente o fecha (YYYY-MM-DD)."
+    ),
+    responses={
+        200: {
+            "description": "Consulta de ventas exitosa, sin registros o sin coincidencias",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "con_registros": {
+                            "summary": "Ventas encontradas",
+                            "value": {
+                                "message": "Consulta de ventas exitosa",
+                                "data": [
+                                    {
+                                        "id": 1,
+                                        "id_venta": 1,
+                                        "cliente_id": 10,
+                                        "estado": "confirmada",
+                                        "fecha": "2026-10-25",
+                                        "cliente": {
+                                            "id_cliente": 10,
+                                            "nombre": "Cliente de ejemplo",
+                                            "identificacion": "1234567890"
+                                        },
+                                        "total": 150000.0
+                                    }
+                                ],
+                                "success": True
+                            }
+                        },
+                        "sin_registros": {
+                            "summary": "Sin ventas registradas",
+                            "value": {
+                                "message": "No existen ventas registradas",
+                                "data": [],
+                                "success": True
+                            }
+                        },
+                        "sin_coincidencias": {
+                            "summary": "Sin coincidencias en búsqueda",
+                            "value": {
+                                "message": "No se encontraron ventas con los criterios ingresados",
+                                "data": [],
+                                "success": True
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Criterio de búsqueda inválido",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "La fecha de búsqueda debe tener el formato YYYY-MM-DD",
+                        "data": [],
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar las ventas",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible consultar las ventas",
+                        "data": [],
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
 )
 def ConsultarVentasAPI(
+    numero_venta: int | None = Query(
+        default=None,
+        gt=0,
+        description="NÚMERO O IDENTIFICADOR DE LA VENTA"
+    ),
+    cliente: str | None = Query(
+        default=None,
+        description="NOMBRE O IDENTIFICACIÓN DEL CLIENTE"
+    ),
+    fecha: str | None = Query(
+        default=None,
+        description="FECHA DE LA VENTA EN FORMATO YYYY-MM-DD"
+    ),
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
+    # NORMALIZAR PARÁMETROS CUANDO SE INVOCA DIRECTAMENTE O MEDIANTE FASTAPI
+    numero_filtro = numero_venta if isinstance(numero_venta, int) and not isinstance(numero_venta, bool) else None
+    cliente_filtro = cliente if isinstance(cliente, str) else None
+    fecha_filtro = fecha if isinstance(fecha, str) else None
+
+    if isinstance(numero_venta, bool) or (numero_filtro is not None and numero_filtro <= 0):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "El número de venta debe ser un entero positivo",
+                "data": [],
+                "success": False
+            }
+        )
+
+    if cliente_filtro is not None:
+        cliente_filtro = cliente_filtro.strip()
+        if not cliente_filtro or cliente_filtro.lower() in PALABRAS_PROHIBIDAS:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": "El criterio de búsqueda del cliente no es válido",
+                    "data": [],
+                    "success": False
+                }
+            )
+
+    if fecha_filtro is not None:
+        fecha_filtro = fecha_filtro.strip()
+        if not fecha_filtro or fecha_filtro.lower() in PALABRAS_PROHIBIDAS:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": "La fecha de búsqueda debe tener el formato YYYY-MM-DD",
+                    "data": [],
+                    "success": False
+                }
+            )
+        try:
+            datetime.strptime(fecha_filtro, "%Y-%m-%d")
+        except ValueError:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": "La fecha de búsqueda debe tener el formato YYYY-MM-DD",
+                    "data": [],
+                    "success": False
+                }
+            )
+
+    hay_filtros = any(
+        criterio is not None for criterio in (numero_filtro, cliente_filtro, fecha_filtro)
+    )
+
     try:
-        ventas = ventaServicio.ConsultarVentasServicio()
+        ventas = ventaServicio.ConsultarVentasServicio(
+            numero_filtro,
+            cliente_filtro,
+            fecha_filtro
+        )
 
         if not ventas:
+            mensaje = (
+                "No se encontraron ventas con los criterios ingresados"
+                if hay_filtros
+                else "No existen ventas registradas"
+            )
             return {
-                "message": "No existen ventas registradas",
+                "message": mensaje,
                 "data": [],
                 "success": True
             }
@@ -143,8 +298,69 @@ def ConsultarVentasAPI(
 @router.get(
     "/{venta_id}",
     status_code=status.HTTP_200_OK,
-    summary="Consultar una venta por ID",
-    description="Obtiene la información general y el estado actual de una venta registrada o confirmada."
+    summary="Consultar el detalle de una venta por ID",
+    description=(
+        "Obtiene la información completa de una venta seleccionada: identificador, "
+        "fecha, cliente asociado, productos, cantidades, precios unitarios, subtotales y total."
+    ),
+    responses={
+        200: {
+            "description": "Consulta de venta exitosa",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Consulta de venta exitosa",
+                        "data": {
+                            "id": 1,
+                            "id_venta": 1,
+                            "cliente_id": 1,
+                            "estado": "confirmada",
+                            "fecha": "2026-10-25",
+                            "cliente": {
+                                "id_cliente": 1,
+                                "nombre": "Juan Perez",
+                                "identificacion": "1234567890"
+                            },
+                            "productos": [
+                                {
+                                    "producto_id": 1,
+                                    "nombre": "Arroz",
+                                    "codigo": "PROD-001",
+                                    "precio_unitario": 3500.0,
+                                    "cantidad": 2,
+                                    "subtotal": 7000.0
+                                }
+                            ],
+                            "total": 7000.0
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Venta no encontrada",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No se encontró la venta solicitada",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible consultar la venta",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
 )
 def ObtenerVentaPorIdAPI(
     venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),

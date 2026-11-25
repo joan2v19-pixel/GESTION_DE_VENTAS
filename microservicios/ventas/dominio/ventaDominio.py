@@ -37,14 +37,89 @@ def RegistrarVentaDominio(datos_venta: dict) -> dict:
     }
 
 
-# CONSULTAR TODAS LAS VENTAS REGISTRADAS
-def ConsultarVentasDominio() -> list[dict]:
-    return ventaRepositorio.ConsultarVentasRepositorio()
+# HELPER PARA FORMATEAR EL RESUMEN DE UNA VENTA PARA LISTADO O DETALLE
+def _FormatearVentaResumen(venta: dict) -> dict:
+
+    cliente = clienteServicio.ObtenerClientePorIdServicio(venta["cliente_id"])
+    fecha_completa = venta.get("fecha_confirmacion") or venta.get("fecha_registro", "")
+    fecha_corta = fecha_completa[:10] if fecha_completa else ""
+
+    # CALCULAR TOTALES SIN MODIFICAR LA VENTA NI EL INVENTARIO
+    productos_detalle = []
+    total_calculado = 0.0
+
+    for item in venta.get("productos", []):
+        producto = productoServicio.ObtenerProductoPorIdServicio(item["producto_id"])
+        precio_unitario = round(float(producto["precio"]), 2) if producto else 0.0
+        subtotal = round(precio_unitario * item["cantidad"], 2)
+        total_calculado = round(total_calculado + subtotal, 2)
+
+        productos_detalle.append({
+            "producto_id": item["producto_id"],
+            "nombre": producto["nombre"] if producto else None,
+            "codigo": producto["codigo"] if producto else None,
+            "precio_unitario": precio_unitario,
+            "cantidad": item["cantidad"],
+            "subtotal": subtotal
+        })
+
+    total_final = venta.get("total", total_calculado)
+
+    return {
+        "id": venta["id"],
+        "id_venta": venta["id"],
+        "cliente_id": venta["cliente_id"],
+        "estado": venta["estado"],
+        "fecha": fecha_corta,
+        "fecha_registro": venta.get("fecha_registro"),
+        "fecha_confirmacion": venta.get("fecha_confirmacion"),
+        "cliente": {
+            "id_cliente": cliente["id"] if cliente else venta["cliente_id"],
+            "nombre": cliente["nombre"] if cliente else None,
+            "identificacion": cliente["identificacion"] if cliente else None
+        },
+        "productos": productos_detalle,
+        "total": total_final
+    }
 
 
-# CONSULTAR UNA VENTA POR SU IDENTIFICADOR
+# CONSULTAR TODAS LAS VENTAS REGISTRADAS CON FILTROS OPCIONALES
+def ConsultarVentasDominio(
+    numero_venta: int | None = None,
+    cliente: str | None = None,
+    fecha: str | None = None
+) -> list[dict]:
+
+    ventas = ventaRepositorio.ConsultarVentasRepositorio()
+    resultados = []
+
+    for venta in ventas:
+        resumen = _FormatearVentaResumen(venta)
+
+        if numero_venta is not None and resumen["id_venta"] != numero_venta:
+            continue
+
+        if cliente is not None:
+            nombre_cliente = (resumen["cliente"]["nombre"] or "").lower()
+            identificacion_cliente = (resumen["cliente"]["identificacion"] or "").lower()
+            criterio = cliente.lower()
+            if criterio not in nombre_cliente and criterio not in identificacion_cliente:
+                continue
+
+        if fecha is not None and resumen["fecha"] != fecha:
+            continue
+
+        resultados.append(resumen)
+
+    return resultados
+
+
+# CONSULTAR UNA VENTA POR SU IDENTIFICADOR CON SU DETALLE COMPLETO
 def ObtenerVentaPorIdDominio(venta_id: int) -> dict | None:
-    return ventaRepositorio.ObtenerVentaPorIdRepositorio(venta_id)
+    venta = ventaRepositorio.ObtenerVentaPorIdRepositorio(venta_id)
+    if venta is None:
+        return None
+    return _FormatearVentaResumen(venta)
 
 
 # HELPER PARA OBTENER UNA VENTA PENDIENTE DE MODIFICACIÓN

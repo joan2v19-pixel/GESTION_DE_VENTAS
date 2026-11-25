@@ -6,9 +6,13 @@ def RegistrarVentaServicio(datos_venta: dict) -> dict:
     return ventaDominio.RegistrarVentaDominio(datos_venta)
 
 
-# SERVICIO PARA CONSULTAR TODAS LAS VENTAS
-def ConsultarVentasServicio() -> list[dict]:
-    return ventaDominio.ConsultarVentasDominio()
+# SERVICIO PARA CONSULTAR TODAS LAS VENTAS CON FILTROS OPCIONALES
+def ConsultarVentasServicio(
+    numero_venta: int | None = None,
+    cliente: str | None = None,
+    fecha: str | None = None
+) -> list[dict]:
+    return ventaDominio.ConsultarVentasDominio(numero_venta, cliente, fecha)
 
 
 # SERVICIO PARA CONSULTAR UNA VENTA POR ID

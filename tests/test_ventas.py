@@ -895,5 +895,194 @@ class TestValidarInventarioVenta(unittest.TestCase):
         self.assertEqual(consulta["data"]["total"], 26500.0)
 
 
+# PRUEBAS UNITARIAS PARA CONSULTAR Y LISTAR LAS VENTAS REGISTRADAS
+class TestConsultaVentas(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        ventaRepositorio.ventas.clear()
+        inventarioRepositorio.inventarios.clear()
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+        clienteRepositorio.clientes.clear()
+
+        clienteRepositorio.RegistrarClienteRepositorio({
+            "identificacion": "1234567890",
+            "nombre": "Juan Perez",
+            "telefono": "3001234567",
+            "correo": "juan@ejemplo.com"
+        })
+        clienteRepositorio.RegistrarClienteRepositorio({
+            "identificacion": "9876543210",
+            "nombre": "Maria Lopez",
+            "telefono": "3009876543",
+            "correo": "maria@ejemplo.com"
+        })
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Arroz",
+            "codigo": "PROD-001",
+            "precio": 10000.0,
+            "categoria_id": 1
+        })
+
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+        RegistrarExistenciasInicialesAPI(
+            ExistenciasInicialesRegistro(producto_id=1, cantidad_inicial=50),
+            self.usuario_autenticado
+        )
+
+    def _crear_venta_confirmada(self, cliente_id: int, cantidad: int):
+        venta = RegistrarVentaAPI(
+            VentaRegistro(cliente_id=cliente_id),
+            self.usuario_autenticado
+        )["data"]
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=cantidad),
+            venta["venta_id"],
+            self.usuario_autenticado
+        )
+        ConfirmarVentaAPI(
+            venta["venta_id"],
+            ConfirmarVentaSolicitud(confirmar=True),
+            self.usuario_autenticado
+        )
+        return venta["venta_id"]
+
+    # CASO 1: CONSULTAR EL LISTADO DE VENTAS REGISTRADAS
+    def test_consultar_listado_ventas_registradas(self):
+        self._crear_venta_confirmada(1, 2)
+        self._crear_venta_confirmada(2, 3)
+
+        respuesta = ConsultarVentasAPI(usuario_autenticado=self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Consulta de ventas exitosa")
+        self.assertEqual(len(respuesta["data"]), 2)
+        self.assertEqual(respuesta["data"][0]["id_venta"], 1)
+        self.assertEqual(respuesta["data"][0]["cliente"]["nombre"], "Juan Perez")
+        self.assertEqual(respuesta["data"][0]["total"], 20000.0)
+        self.assertEqual(respuesta["data"][1]["total"], 30000.0)
+
+    # CASO 2: BUSCAR VENTAS POR NÚMERO, CLIENTE O FECHA
+    def test_buscar_ventas_por_criterios(self):
+        self._crear_venta_confirmada(1, 2)
+        self._crear_venta_confirmada(2, 3)
+
+        # BÚSQUEDA POR NÚMERO DE VENTA
+        por_numero = ConsultarVentasAPI(
+            numero_venta=2,
+            usuario_autenticado=self.usuario_autenticado
+        )
+        self.assertEqual(len(por_numero["data"]), 1)
+        self.assertEqual(por_numero["data"][0]["cliente"]["nombre"], "Maria Lopez")
+
+        # BÚSQUEDA POR CLIENTE
+        por_cliente = ConsultarVentasAPI(
+            cliente="Juan",
+            usuario_autenticado=self.usuario_autenticado
+        )
+        self.assertEqual(len(por_cliente["data"]), 1)
+        self.assertEqual(por_cliente["data"][0]["id_venta"], 1)
+
+        # BÚSQUEDA POR FECHA
+        fecha_hoy = por_cliente["data"][0]["fecha"]
+        por_fecha = ConsultarVentasAPI(
+            fecha=fecha_hoy,
+            usuario_autenticado=self.usuario_autenticado
+        )
+        self.assertEqual(len(por_fecha["data"]), 2)
+
+    # CASO 3: CONSULTAR EL DETALLE DE UNA VENTA
+    def test_consultar_detalle_venta(self):
+        venta_id = self._crear_venta_confirmada(1, 2)
+
+        respuesta = ObtenerVentaPorIdAPI(venta_id, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Consulta de venta exitosa")
+        self.assertEqual(respuesta["data"]["cliente"]["nombre"], "Juan Perez")
+        self.assertEqual(respuesta["data"]["productos"][0]["nombre"], "Arroz")
+        self.assertEqual(respuesta["data"]["productos"][0]["precio_unitario"], 10000.0)
+        self.assertEqual(respuesta["data"]["productos"][0]["cantidad"], 2)
+        self.assertEqual(respuesta["data"]["productos"][0]["subtotal"], 20000.0)
+        self.assertEqual(respuesta["data"]["total"], 20000.0)
+
+    # CASO 4: CONSULTAR VENTAS CUANDO NO EXISTEN REGISTROS
+    def test_consultar_ventas_sin_registros(self):
+        respuesta = ConsultarVentasAPI(usuario_autenticado=self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "No existen ventas registradas")
+        self.assertEqual(respuesta["data"], [])
+
+    # CASO 5: BUSCAR VENTAS SIN COINCIDENCIAS Y VALIDAR CRITERIOS INVÁLIDOS
+    def test_buscar_ventas_sin_coincidencias_y_criterios_invalidos(self):
+        self._crear_venta_confirmada(1, 2)
+
+        sin_resultados = ConsultarVentasAPI(
+            cliente="Inexistente",
+            usuario_autenticado=self.usuario_autenticado
+        )
+        self.assertTrue(sin_resultados["success"])
+        self.assertEqual(
+            sin_resultados["message"],
+            "No se encontraron ventas con los criterios ingresados"
+        )
+        self.assertEqual(sin_resultados["data"], [])
+
+        # FECHA INVÁLIDA Y CLIENTE 'string'
+        fecha_invalida = ConsultarVentasAPI(
+            fecha="25-10-2026",
+            usuario_autenticado=self.usuario_autenticado
+        )
+        self.assertEqual(fecha_invalida.status_code, 400)
+
+        cliente_string = ConsultarVentasAPI(
+            cliente="string",
+            usuario_autenticado=self.usuario_autenticado
+        )
+        self.assertEqual(cliente_string.status_code, 400)
+
+    # CASO 6: CONSULTAR UNA VENTA INEXISTENTE
+    def test_consultar_venta_inexistente(self):
+        respuesta = ObtenerVentaPorIdAPI(999, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "No se encontró la venta solicitada")
+
+    # CASO 7: ERROR AL CONSULTAR LAS VENTAS
+    @patch(
+        "microservicios.ventas.repositorio.ventaRepositorio.ConsultarVentasRepositorio",
+        side_effect=RuntimeError("Error simulado de base de datos")
+    )
+    def test_error_al_consultar_ventas(self, mock_consultar):
+        respuesta = ConsultarVentasAPI(usuario_autenticado=self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "No fue posible consultar las ventas")
+        self.assertEqual(cuerpo["data"], [])
+
+    # VERIFICAR QUE LOS ENDPOINTS DE CONSULTA ESTÉN EN OPENAPI / SWAGGER
+    def test_documentacion_openapi_consulta_ventas(self):
+        esquema = app.openapi()
+        self.assertIn("/api/v1/ventas/", esquema["paths"])
+        self.assertIn("get", esquema["paths"]["/api/v1/ventas/"])
+        self.assertIn("/api/v1/ventas/{venta_id}", esquema["paths"])
+        self.assertIn("get", esquema["paths"]["/api/v1/ventas/{venta_id}"])
+
+
 if __name__ == "__main__":
     unittest.main()
