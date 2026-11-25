@@ -1,7 +1,8 @@
+
 from fastapi import APIRouter, HTTPException, Query, status, Depends
 from pydantic import EmailStr
-from microservicios.usuarios.api.usuarioApi import ObtenerUsuarioAutenticado
 
+from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
 from microservicios.clientes.api.dtos import ClienteRegistro, ClienteActualizar
 from microservicios.clientes.servicio import clienteServicio
 
@@ -12,15 +13,17 @@ router = APIRouter(
 )
 
 
-# Registrar un cliente
+# REGISTRAR UN CLIENTE
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def RegistrarClienteAPI(datos: ClienteRegistro,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado) ):
+def RegistrarClienteAPI(
+    datos: ClienteRegistro,
+    superadministrador: dict = Depends(ObtenerSuperadministrador)
+):
     try:
         cliente = clienteServicio.RegistrarClienteServicio(datos.model_dump())
 
         return {
-            "mensaje": "CLIENTE REGISTRADO EXITOSAMENTE.",
+            "message": "CLIENTE REGISTRADO EXITOSAMENTE.",
             "data": cliente,
             "success": True
         }
@@ -38,21 +41,23 @@ def RegistrarClienteAPI(datos: ClienteRegistro,
         )
 
 
-# Consultar todos los clientes
+# CONSULTAR TODOS LOS CLIENTES
 @router.get("/")
-def ConsultarClientesAPI(usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)):
+def ConsultarClientesAPI(
+    superadministrador: dict = Depends(ObtenerSuperadministrador)
+):
     try:
         clientes = clienteServicio.ConsultarClientesServicio()
 
         if not clientes:
             return {
-                "mensaje": "NO HAY CLIENTES REGISTRADOS.",
+                "message": "NO HAY CLIENTES REGISTRADOS.",
                 "data": [],
                 "success": True
             }
 
         return {
-            "mensaje": "CONSULTA DE CLIENTES EXITOSA.",
+            "message": "CONSULTA DE CLIENTES EXITOSA.",
             "data": clientes,
             "success": True
         }
@@ -64,23 +69,22 @@ def ConsultarClientesAPI(usuario_autenticado: dict = Depends(ObtenerUsuarioAuten
         )
 
 
-# Buscar clientes por diferentes criterios
+# BUSCAR CLIENTES POR DIFERENTES CRITERIOS
 @router.get("/buscar")
 def BuscarClientesAPI(
     identificacion: str | None = Query(default=None, min_length=5, max_length=20),
     nombre: str | None = Query(default=None, min_length=3, max_length=100),
     telefono: str | None = Query(default=None, min_length=7, max_length=15),
     correo: EmailStr | None = Query(default=None),
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
-
+    superadministrador: dict = Depends(ObtenerSuperadministrador)
 ):
-    # Limpiar los criterios ingresados
+    # LIMPIAR LOS CRITERIOS INGRESADOS
     identificacion = identificacion.strip() if identificacion else None
     nombre = nombre.strip() if nombre else None
     telefono = telefono.strip() if telefono else None
     correo = str(correo).strip() if correo else None
 
-    # Verificar que se haya ingresado al menos un criterio
+    # VERIFICAR QUE SE HAYA INGRESADO AL MENOS UN CRITERIO DE BUSQUEDA
     if not any([identificacion, nombre, telefono, correo]):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -97,13 +101,13 @@ def BuscarClientesAPI(
 
         if not clientes:
             return {
-                "mensaje": "NO SE ENCONTRARON CLIENTES CON LOS CRITERIOS INGRESADOS.",
+                "message": "NO SE ENCONTRARON CLIENTES CON LOS CRITERIOS INGRESADOS.",
                 "data": [],
                 "success": True
             }
 
         return {
-            "mensaje": "BÚSQUEDA DE CLIENTES EXITOSA.",
+            "message": "BÚSQUEDA DE CLIENTES EXITOSA.",
             "data": clientes,
             "success": True
         }
@@ -118,10 +122,12 @@ def BuscarClientesAPI(
         )
 
 
-# Consultar un cliente por ID
+# CONSULTAR UN CLIENTE POR ID
 @router.get("/{id}")
-def ObtenerClientePorIdAPI(id: int,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)):
+def ObtenerClientePorIdAPI(
+    id: int,
+    superadministrador: dict = Depends(ObtenerSuperadministrador)
+):
     try:
         cliente = clienteServicio.ObtenerClientePorIdServicio(id)
 
@@ -132,7 +138,7 @@ def ObtenerClientePorIdAPI(id: int,
             )
 
         return {
-            "mensaje": "CONSULTA DEL CLIENTE EXITOSA.",
+            "message": "CONSULTA DEL CLIENTE EXITOSA.",
             "data": cliente,
             "success": True
         }
@@ -147,12 +153,12 @@ def ObtenerClientePorIdAPI(id: int,
         )
 
 
-# Actualizar un cliente
+# ACTUALIZAR UN CLIENTE
 @router.put("/{id}", status_code=status.HTTP_200_OK)
 def ActualizarClienteAPI(
     id: int,
     datos: ClienteActualizar,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    superadministrador: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         cliente = clienteServicio.ActualizarClienteServicio(
@@ -161,7 +167,7 @@ def ActualizarClienteAPI(
         )
 
         return {
-            "mensaje": "CLIENTE ACTUALIZADO EXITOSAMENTE.",
+            "message": "CLIENTE ACTUALIZADO EXITOSAMENTE.",
             "data": cliente,
             "success": True
         }

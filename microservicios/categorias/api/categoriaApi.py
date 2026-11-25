@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, HTTPException, status, Depends
 
-from microservicios.usuarios.api.usuarioApi import ObtenerUsuarioAutenticado
+from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
 from microservicios.categorias.api.dtos import CategoriaRegistro, CategoriaActualizar
 from microservicios.categorias.servicio import categoriaServicio
 
@@ -16,7 +16,7 @@ router = APIRouter(
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def RegistrarCategoriaAPI(
     datos: CategoriaRegistro,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         categoria = categoriaServicio.RegistrarCategoriaServicio(
@@ -24,7 +24,7 @@ def RegistrarCategoriaAPI(
         )
 
         return {
-            "mensaje": "CATEGORÍA REGISTRADA EXITOSAMENTE.",
+            "message": "CATEGORÍA REGISTRADA EXITOSAMENTE.",
             "data": categoria,
             "success": True
         }
@@ -46,20 +46,20 @@ def RegistrarCategoriaAPI(
 # Consultar todas las categorías
 @router.get("/", status_code=status.HTTP_200_OK)
 def ConsultarCategoriasAPI(
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         categorias = categoriaServicio.ConsultarCategoriasServicio()
 
         if not categorias:
             return {
-                "mensaje": "NO EXISTEN CATEGORÍAS REGISTRADAS.",
+                "message": "NO EXISTEN CATEGORÍAS REGISTRADAS.",
                 "data": [],
                 "success": True
             }
 
         return {
-            "mensaje": "CONSULTA DE CATEGORÍAS EXITOSA.",
+            "message": "CONSULTA DE CATEGORÍAS EXITOSA.",
             "data": categorias,
             "success": True
         }
@@ -76,7 +76,7 @@ def ConsultarCategoriasAPI(
 @router.get("/{id}", status_code=status.HTTP_200_OK)
 def ObtenerCategoriaPorIdAPI(
     id: int,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         categoria = categoriaServicio.ObtenerCategoriaPorIdServicio(id)
@@ -88,7 +88,7 @@ def ObtenerCategoriaPorIdAPI(
             )
 
         return {
-            "mensaje": "CONSULTA DE CATEGORÍA EXITOSA.",
+            "message": "CONSULTA DE CATEGORÍA EXITOSA.",
             "data": categoria,
             "success": True
         }
@@ -109,7 +109,7 @@ def ObtenerCategoriaPorIdAPI(
 def ActualizarCategoriaAPI(
     id: int,
     datos: CategoriaActualizar,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         categoriaServicio.ActualizarCategoriaServicio(
@@ -118,7 +118,7 @@ def ActualizarCategoriaAPI(
         )
 
         return {
-            "mensaje": "CATEGORÍA ACTUALIZADA CORRECTAMENTE.",
+            "message": "CATEGORÍA ACTUALIZADA CORRECTAMENTE.",
             "success": True
         }
 

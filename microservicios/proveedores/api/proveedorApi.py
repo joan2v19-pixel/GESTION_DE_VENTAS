@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, HTTPException, status, Depends
 
-from microservicios.usuarios.api.usuarioApi import ObtenerUsuarioAutenticado
+from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
 from microservicios.proveedores.api.dtos import ProveedorRegistro, ProveedorActualizar
 from microservicios.proveedores.servicio import proveedorServicio
 
@@ -16,7 +16,7 @@ router = APIRouter(
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def RegistrarProveedorAPI(
     datos: ProveedorRegistro,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         proveedor = proveedorServicio.RegistrarProveedorServicio(
@@ -24,7 +24,7 @@ def RegistrarProveedorAPI(
         )
 
         return {
-            "mensaje": "PROVEEDOR REGISTRADO EXITOSAMENTE.",
+            "message": "PROVEEDOR REGISTRADO EXITOSAMENTE.",
             "data": proveedor,
             "success": True
         }
@@ -45,20 +45,20 @@ def RegistrarProveedorAPI(
 # Consultar todos los proveedores
 @router.get("/", status_code=status.HTTP_200_OK)
 def ConsultarProveedoresAPI(
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         proveedores = proveedorServicio.ConsultarProveedoresServicio()
 
         if not proveedores:
             return {
-                "mensaje": "NO EXISTEN PROVEEDORES REGISTRADOS.",
+                "message": "NO EXISTEN PROVEEDORES REGISTRADOS.",
                 "data": [],
                 "success": True
             }
 
         return {
-            "mensaje": "CONSULTA DE PROVEEDORES EXITOSA.",
+            "message": "CONSULTA DE PROVEEDORES EXITOSA.",
             "data": proveedores,
             "success": True
         }
@@ -78,7 +78,7 @@ def BuscarProveedoresAPI(
     identificacion: str | None = None,
     telefono: str | None = None,
     correo: str | None = None,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         # Limpiar los criterios ingresados
@@ -103,13 +103,13 @@ def BuscarProveedoresAPI(
 
         if not proveedores:
             return {
-                "mensaje": "NO SE ENCONTRARON PROVEEDORES CON LOS CRITERIOS INGRESADOS.",
+                "message": "NO SE ENCONTRARON PROVEEDORES CON LOS CRITERIOS INGRESADOS.",
                 "data": [],
                 "success": True
             }
 
         return {
-            "mensaje": "BÚSQUEDA DE PROVEEDORES EXITOSA.",
+            "message": "BÚSQUEDA DE PROVEEDORES EXITOSA.",
             "data": proveedores,
             "success": True
         }
@@ -128,7 +128,7 @@ def BuscarProveedoresAPI(
 @router.get("/{id}", status_code=status.HTTP_200_OK)
 def ObtenerProveedorPorIdAPI(
     id: int,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         proveedor = proveedorServicio.ObtenerProveedorPorIdServicio(id)
@@ -140,7 +140,7 @@ def ObtenerProveedorPorIdAPI(
             )
 
         return {
-            "mensaje": "PROVEEDOR CONSULTADO EXITOSAMENTE.",
+            "message": "PROVEEDOR CONSULTADO EXITOSAMENTE.",
             "data": proveedor,
             "success": True
         }
@@ -161,7 +161,7 @@ def ObtenerProveedorPorIdAPI(
 def ActualizarProveedorAPI(
     id: int,
     datos: ProveedorActualizar,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
         proveedor = proveedorServicio.ActualizarProveedorServicio(
@@ -170,7 +170,7 @@ def ActualizarProveedorAPI(
         )
 
         return {
-            "mensaje": "PROVEEDOR ACTUALIZADO EXITOSAMENTE.",
+            "message": "PROVEEDOR ACTUALIZADO EXITOSAMENTE.",
             "data": proveedor,
             "success": True
         }
