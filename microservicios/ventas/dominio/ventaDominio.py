@@ -1,3 +1,4 @@
+from datetime import datetime
 import math
 
 from microservicios.clientes.servicio import clienteServicio
@@ -278,6 +279,13 @@ def ConfirmarVentaDominio(venta_id: int) -> dict:
     if venta["estado"] == "confirmada":
         raise ValueError("La venta ya fue confirmada y sus existencias ya fueron descontadas")
 
+    # VERIFICAR QUE EL CLIENTE ASOCIADO EXISTA EN EL SISTEMA
+    cliente_existente = clienteServicio.ObtenerClientePorIdServicio(
+        venta["cliente_id"]
+    )
+    if cliente_existente is None:
+        raise LookupError("El cliente asociado a la venta no existe")
+
     # IMPEDIR CONTINUAR SI LA VENTA NO TIENE PRODUCTOS EN SU DETALLE
     if not venta["productos"]:
         raise ValueError("Debe agregar al menos un producto al detalle de la venta")
@@ -314,11 +322,19 @@ def ConfirmarVentaDominio(venta_id: int) -> dict:
         "confirmada"
     )
 
+    fecha_confirmacion = datetime.now().isoformat()
+
     # ACTUALIZAR EL ESTADO DE LA VENTA A CONFIRMADA CON REVERSIÓN SI FALLA
     try:
         venta_actualizada = ventaRepositorio.ActualizarEstadoVentaRepositorio(
             venta_id,
-            "confirmada"
+            "confirmada",
+            {
+                "fecha_confirmacion": fecha_confirmacion,
+                "subtotal": totales_venta["total_venta"],
+                "total": totales_venta["total_venta"],
+                "detalle_totales": totales_venta["productos"]
+            }
         )
         if venta_actualizada is None:
             raise RuntimeError("No fue posible actualizar el estado de la venta")
@@ -334,6 +350,11 @@ def ConfirmarVentaDominio(venta_id: int) -> dict:
     return {
         "venta_id": venta_id,
         "estado": "confirmada",
-        "productos": resumen_descuento,
-        "total_venta": totales_venta["total_venta"]
+        "cliente_id": venta["cliente_id"],
+        "fecha_confirmacion": fecha_confirmacion,
+        "subtotal": totales_venta["total_venta"],
+        "total": totales_venta["total_venta"],
+        "total_venta": totales_venta["total_venta"],
+        "inventario_actualizado": True,
+        "productos": resumen_descuento
     }

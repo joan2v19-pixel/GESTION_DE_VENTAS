@@ -139,6 +139,45 @@ def ConsultarVentasAPI(
         )
 
 
+# CONSULTAR UNA VENTA POR SU IDENTIFICADOR
+@router.get(
+    "/{venta_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar una venta por ID",
+    description="Obtiene la información general y el estado actual de una venta registrada o confirmada."
+)
+def ObtenerVentaPorIdAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        venta = ventaServicio.ObtenerVentaPorIdServicio(venta_id)
+
+        if venta is None:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={
+                    "message": "No se encontró la venta solicitada",
+                    "success": False
+                }
+            )
+
+        return {
+            "message": "Consulta de venta exitosa",
+            "data": venta,
+            "success": True
+        }
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible consultar la venta",
+                "success": False
+            }
+        )
+
+
 # CONFIRMAR UNA VENTA Y DESCONTAR EXISTENCIAS DEL INVENTARIO
 @router.post(
     "/{venta_id}/confirmar",
@@ -243,8 +282,18 @@ def ConfirmarVentaAPI(
     datos: ConfirmarVentaSolicitud | None = Body(default=None),
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
+    # VALIDAR QUE SE HAYA CONFIRMADO LA OPERACIÓN SI SE ENVÍA EL INDICADOR confirmar
+    if datos is not None and datos.confirmar is False:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "Debe confirmar la operación enviando confirmar en true",
+                "success": False
+            }
+        )
+
     # VALIDAR COHERENCIA SI SE ENVÍA venta_id EN EL CUERPO DE LA SOLICITUD
-    if datos is not None and datos.venta_id != venta_id:
+    if datos is not None and datos.venta_id is not None and datos.venta_id != venta_id:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={

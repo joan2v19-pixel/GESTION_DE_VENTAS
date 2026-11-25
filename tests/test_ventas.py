@@ -27,6 +27,7 @@ from microservicios.ventas.api.ventaApi import (
     ConsultarDetalleVentaAPI,
     ConsultarVentasAPI,
     EliminarDetalleVentaAPI,
+    ObtenerVentaPorIdAPI,
     RegistrarVentaAPI,
     ValidarInventarioVentaAPI
 )
@@ -236,7 +237,7 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
         self.assertFalse(cuerpo["success"])
         self.assertEqual(cuerpo["message"], "La venta seleccionada no existe")
 
-        for valor_invalido in [0, -1, 1.5, "string", True, None]:
+        for valor_invalido in [0, -1, 1.5, "string", True]:
             with self.assertRaises(ValidationError):
                 ConfirmarVentaSolicitud(venta_id=valor_invalido)
 
@@ -851,6 +852,47 @@ class TestValidarInventarioVenta(unittest.TestCase):
         ruta = "/api/v1/ventas/{venta_id}/validar-inventario"
         self.assertIn(ruta, esquema["paths"])
         self.assertIn("post", esquema["paths"][ruta])
+
+    # VERIFICAR CONFIRMACIÓN COMPLETA CON confirmar=true, TOTALES, FECHA Y CONSULTA POSTERIOR
+    def test_confirmar_venta_completo_con_totales_fecha_y_consulta(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=3),
+            1,
+            self.usuario_autenticado
+        )
+
+        # VALIDAR QUE confirmar=false SEA RECHAZADO
+        respuesta_falsa = ConfirmarVentaAPI(
+            1,
+            ConfirmarVentaSolicitud(confirmar=False),
+            self.usuario_autenticado
+        )
+        self.assertEqual(respuesta_falsa.status_code, 400)
+
+        # CONFIRMAR CON confirmar=true
+        respuesta = ConfirmarVentaAPI(
+            1,
+            ConfirmarVentaSolicitud(confirmar=True),
+            self.usuario_autenticado
+        )
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["data"]["estado"], "confirmada")
+        self.assertEqual(respuesta["data"]["cliente_id"], 1)
+        self.assertEqual(respuesta["data"]["subtotal"], 26500.0)
+        self.assertEqual(respuesta["data"]["total"], 26500.0)
+        self.assertTrue(respuesta["data"]["inventario_actualizado"])
+        self.assertIn("fecha_confirmacion", respuesta["data"])
+
+        # CONSULTAR LA VENTA CONFIRMADA POR ID
+        consulta = ObtenerVentaPorIdAPI(1, self.usuario_autenticado)
+        self.assertTrue(consulta["success"])
+        self.assertEqual(consulta["data"]["estado"], "confirmada")
+        self.assertEqual(consulta["data"]["total"], 26500.0)
 
 
 if __name__ == "__main__":

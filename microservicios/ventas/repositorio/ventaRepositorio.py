@@ -1,3 +1,6 @@
+from datetime import datetime
+
+
 # LISTA PARA ALMACENAR LAS VENTAS EN MEMORIA
 ventas = []
 
@@ -9,6 +12,7 @@ def RegistrarVentaRepositorio(datos_venta: dict) -> dict:
         "id": len(ventas) + 1,
         "cliente_id": datos_venta["cliente_id"],
         "estado": "pendiente",
+        "fecha_registro": datetime.now().isoformat(),
         "productos": datos_venta.get("productos", [])
     }
 
@@ -33,7 +37,11 @@ def ObtenerVentaPorIdRepositorio(venta_id: int) -> dict | None:
 
 
 # ACTUALIZAR EL ESTADO DE UNA VENTA EXISTENTE
-def ActualizarEstadoVentaRepositorio(venta_id: int, nuevo_estado: str) -> dict | None:
+def ActualizarEstadoVentaRepositorio(
+    venta_id: int,
+    nuevo_estado: str,
+    datos_adicionales: dict | None = None
+) -> dict | None:
 
     venta = ObtenerVentaPorIdRepositorio(venta_id)
 
@@ -41,6 +49,8 @@ def ActualizarEstadoVentaRepositorio(venta_id: int, nuevo_estado: str) -> dict |
         return None
 
     venta["estado"] = nuevo_estado
+    if datos_adicionales:
+        venta.update(datos_adicionales)
 
     return venta
 

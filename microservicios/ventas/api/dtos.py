@@ -82,21 +82,28 @@ class VentaRegistro(BaseModel):
 # DTO PARA CONFIRMAR UNA VENTA REGISTRADA
 class ConfirmarVentaSolicitud(BaseModel):
 
-    venta_id: int = Field(
-        ...,
+    venta_id: int | None = Field(
+        default=None,
         gt=0,
-        description="IDENTIFICADOR DE LA VENTA A CONFIRMAR",
+        description="IDENTIFICADOR OPCIONAL DE LA VENTA A CONFIRMAR",
         examples=[1]
+    )
+    confirmar: bool | None = Field(
+        default=True,
+        description="INDICADOR BOOLEANO PARA CONFIRMAR LA VENTA",
+        examples=[True]
     )
 
     model_config = ConfigDict(
         extra="forbid"
     )
 
-    # VALIDAR QUE EL IDENTIFICADOR DE LA VENTA SEA UN ENTERO POSITIVO VÁLIDO
+    # VALIDAR QUE EL IDENTIFICADOR DE LA VENTA SEA UN ENTERO POSITIVO VÁLIDO SI SE ENVÍA
     @field_validator("venta_id", mode="before")
     @classmethod
     def ValidarVentaId(cls, valor):
+        if valor is None:
+            return None
         return _ValidarEnteroPositivo(
             valor,
             "EL IDENTIFICADOR DE LA VENTA DEBE SER UN NÚMERO ENTERO POSITIVO."
