@@ -6,8 +6,9 @@ from pydantic import ValidationError
 
 from main import app
 from microservicios.categorias.repositorio import categoriaRepositorio
-from microservicios.productos.api.dtos import ProductoRegistro
+from microservicios.productos.api.dtos import ProductoActualizar, ProductoRegistro
 from microservicios.productos.api.productoApi import (
+    ActualizarProductoAPI,
     BuscarProductosAPI,
     ConsultarProductosAPI,
     ObtenerProductoPorIdAPI,
@@ -431,6 +432,175 @@ class TestBusquedaProductos(unittest.TestCase):
         esquema = app.openapi()
         self.assertIn("/api/v1/productos/buscar", esquema["paths"])
         self.assertIn("get", esquema["paths"]["/api/v1/productos/buscar"])
+
+
+# PRUEBAS UNITARIAS PARA LA ACTUALIZACIÓN DE PRODUCTOS
+class TestActualizacionProductos(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+
+        # REGISTRAR CATEGORÍAS Y PRODUCTOS BASE PARA LAS PRUEBAS
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Abarrotes",
+            "descripcion": "Productos básicos de despensa"
+        })
+
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+        RegistrarProductoAPI(
+            ProductoRegistro(nombre="Arroz", codigo="PROD-001", precio=3500, categoria_id=1),
+            self.usuario_autenticado
+        )
+        RegistrarProductoAPI(
+            ProductoRegistro(nombre="Aceite", codigo="PROD-002", precio=6500, categoria_id=2),
+            self.usuario_autenticado
+        )
+
+    # CASO 1: ACTUALIZACIÓN EXITOSA DE UN PRODUCTO
+    def test_actualizacion_exitosa_producto(self):
+        datos = ProductoActualizar(
+            nombre="Arroz Blanco",
+            codigo="PROD-001",
+            precio=3800,
+            categoria_id=2
+        )
+
+        respuesta = ActualizarProductoAPI(datos, 1, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Producto actualizado correctamente")
+        self.assertEqual(respuesta["data"]["nombre"], "Arroz Blanco")
+        self.assertEqual(respuesta["data"]["precio"], 3800.0)
+        self.assertEqual(respuesta["data"]["categoria"], "Abarrotes")
+
+        # VERIFICAR AL CONSULTAR EL PRODUCTO
+        consulta = ObtenerProductoPorIdAPI(1, self.usuario_autenticado)
+        self.assertEqual(consulta["data"]["nombre"], "Arroz Blanco")
+        self.assertEqual(consulta["data"]["precio"], 3800.0)
+
+    # CASO 2: PRODUCTO INEXISTENTE
+    def test_actualizacion_producto_inexistente(self):
+        datos = ProductoActualizar(
+            nombre="Arroz",
+            codigo="PROD-099",
+            precio=3800,
+            categoria_id=1
+        )
+
+        respuesta = ActualizarProductoAPI(datos, 999, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "El producto seleccionado no existe")
+
+    # CASO 3: DATOS OBLIGATORIOS INCOMPLETOS
+    def test_actualizacion_datos_incompletos(self):
+        with self.assertRaises(ValidationError) as contexto:
+            ProductoActualizar(
+                nombre="Arroz",
+                codigo="PROD-001",
+                precio=3800
+            )
+
+        campos = [error["loc"][0] for error in contexto.exception.errors()]
+        self.assertIn("categoria_id", campos)
+        self.assertEqual(productoRepositorio.ObtenerProductoPorIdRepositorio(1)["precio"], 3500.0)
+
+    # CASO 4: CÓDIGO DUPLICADO EN OTRO PRODUCTO
+    def test_actualizacion_codigo_duplicado(self):
+        datos = ProductoActualizar(
+            nombre="Arroz",
+            codigo="PROD-002",
+            precio=3800,
+            categoria_id=1
+        )
+
+        respuesta = ActualizarProductoAPI(datos, 1, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 409)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(
+            cuerpo["message"],
+            "El código del producto ya se encuentra registrado en otro producto"
+        )
+        self.assertEqual(productoRepositorio.ObtenerProductoPorIdRepositorio(1)["codigo"], "PROD-001")
+
+    # CASO 5: PRECIO INVÁLIDO
+    def test_actualizacion_precio_invalido(self):
+        with self.assertRaises(ValidationError):
+            ProductoActualizar(
+                nombre="Arroz",
+                codigo="PROD-001",
+                precio="string",
+                categoria_id=1
+            )
+
+        with self.assertRaises(ValidationError):
+            ProductoActualizar(
+                nombre="Arroz",
+                codigo="PROD-001",
+                precio=-100,
+                categoria_id=1
+            )
+
+        self.assertEqual(productoRepositorio.ObtenerProductoPorIdRepositorio(1)["precio"], 3500.0)
+
+    # CASO 6: CATEGORÍA INEXISTENTE
+    def test_actualizacion_categoria_inexistente(self):
+        datos = ProductoActualizar(
+            nombre="Arroz",
+            codigo="PROD-001",
+            precio=3800,
+            categoria_id=999
+        )
+
+        respuesta = ActualizarProductoAPI(datos, 1, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "La categoría seleccionada no existe")
+        self.assertEqual(productoRepositorio.ObtenerProductoPorIdRepositorio(1)["categoria_id"], 1)
+
+    # CASO 7: ERROR AL GUARDAR LOS CAMBIOS
+    @patch(
+        "microservicios.productos.repositorio.productoRepositorio.ActualizarProductoRepositorio",
+        side_effect=RuntimeError("Error simulado de base de datos")
+    )
+    def test_error_al_actualizar_producto(self, mock_actualizar):
+        datos = ProductoActualizar(
+            nombre="Arroz Nuevo",
+            codigo="PROD-001",
+            precio=3900,
+            categoria_id=1
+        )
+
+        respuesta = ActualizarProductoAPI(datos, 1, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "No fue posible actualizar el producto")
+        self.assertEqual(productoRepositorio.ObtenerProductoPorIdRepositorio(1)["nombre"], "Arroz")
+
+    # VERIFICAR QUE EL ENDPOINT PUT ESTÉ REGISTRADO EN OPENAPI / SWAGGER
+    def test_documentacion_openapi_actualizacion(self):
+        esquema = app.openapi()
+        self.assertIn("/api/v1/productos/{id}", esquema["paths"])
+        self.assertIn("put", esquema["paths"]["/api/v1/productos/{id}"])
 
 
 if __name__ == "__main__":

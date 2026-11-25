@@ -61,3 +61,37 @@ def BuscarProductosDominio(
 ) -> list[dict]:
     productos = productoRepositorio.BuscarProductosRepositorio(nombre, codigo)
     return [_FormatearProductoConCategoria(producto) for producto in productos]
+
+
+# ACTUALIZAR UN PRODUCTO EXISTENTE VALIDANDO REGLAS DE NEGOCIO
+def ActualizarProductoDominio(id: int, datos_producto: dict) -> dict:
+
+    # VERIFICAR QUE EL PRODUCTO EXISTA EN EL SISTEMA
+    producto_existente = productoRepositorio.ObtenerProductoPorIdRepositorio(id)
+
+    if producto_existente is None:
+        raise LookupError("El producto seleccionado no existe")
+
+    # VERIFICAR QUE EL CÓDIGO NO ESTÉ ASIGNADO A OTRO PRODUCTO
+    producto_codigo = productoRepositorio.ObtenerProductoPorCodigoRepositorio(
+        datos_producto["codigo"]
+    )
+
+    if producto_codigo is not None and producto_codigo["id"] != id:
+        raise ValueError("El código del producto ya se encuentra registrado en otro producto")
+
+    # VERIFICAR QUE LA CATEGORÍA SELECCIONADA EXISTA EN EL SISTEMA
+    categoria_existente = categoriaServicio.ObtenerCategoriaPorIdServicio(
+        datos_producto["categoria_id"]
+    )
+
+    if categoria_existente is None:
+        raise LookupError("La categoría seleccionada no existe")
+
+    # GUARDAR LOS CAMBIOS DEL PRODUCTO EN EL REPOSITORIO
+    producto_actualizado = productoRepositorio.ActualizarProductoRepositorio(
+        id,
+        datos_producto
+    )
+
+    return _FormatearProductoConCategoria(producto_actualizado)

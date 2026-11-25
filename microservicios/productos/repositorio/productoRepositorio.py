@@ -60,3 +60,21 @@ def BuscarProductosRepositorio(
         resultados.append(producto)
 
     return resultados
+
+
+# ACTUALIZAR UN PRODUCTO EXISTENTE EN EL REPOSITORIO
+def ActualizarProductoRepositorio(id: int, datos_producto: dict) -> dict | None:
+
+    producto = ObtenerProductoPorIdRepositorio(id)
+
+    if producto is None:
+        return None
+
+    producto.update({
+        "nombre": datos_producto["nombre"],
+        "codigo": datos_producto["codigo"],
+        "precio": datos_producto["precio"],
+        "categoria_id": datos_producto["categoria_id"]
+    })
+
+    return producto

@@ -98,3 +98,8 @@ class ProductoRegistro(BaseModel):
         if isinstance(valor, str):
             raise ValueError("EL IDENTIFICADOR DE LA CATEGORÍA DEBE SER UN NÚMERO ENTERO POSITIVO.")
         return valor
+
+
+# DTO PARA ACTUALIZAR UN PRODUCTO (HEREDA LAS VALIDACIONES DE REGISTRO)
+class ProductoActualizar(ProductoRegistro):
+    pass

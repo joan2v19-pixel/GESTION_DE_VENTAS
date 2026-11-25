@@ -22,3 +22,8 @@ def BuscarProductosServicio(
     codigo: str | None = None
 ) -> list[dict]:
     return productoDominio.BuscarProductosDominio(nombre, codigo)
+
+
+# SERVICIO PARA ACTUALIZAR UN PRODUCTO EXISTENTE
+def ActualizarProductoServicio(id: int, datos_producto: dict) -> dict:
+    return productoDominio.ActualizarProductoDominio(id, datos_producto)

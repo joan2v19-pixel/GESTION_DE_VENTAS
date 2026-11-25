@@ -3,7 +3,11 @@ from fastapi.responses import JSONResponse
 import re
 
 from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
-from microservicios.productos.api.dtos import PALABRAS_PROHIBIDAS, ProductoRegistro
+from microservicios.productos.api.dtos import (
+    PALABRAS_PROHIBIDAS,
+    ProductoActualizar,
+    ProductoRegistro
+)
 from microservicios.productos.servicio import productoServicio
 
 
@@ -470,6 +474,133 @@ def ObtenerProductoPorIdAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible consultar el producto",
+                "success": False
+            }
+        )
+
+
+# ACTUALIZAR UN PRODUCTO EXISTENTE
+@router.put(
+    "/{id}",
+    status_code=status.HTTP_200_OK,
+    summary="Actualizar un producto existente",
+    description=(
+        "Actualiza la información de un producto registrado (nombre, código, precio y "
+        "categoría asociada) validando que el producto exista, que el código no esté "
+        "asignado a otro producto, que la categoría exista y que el precio sea válido."
+    ),
+    responses={
+        200: {
+            "description": "Producto actualizado correctamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Producto actualizado correctamente",
+                        "data": {
+                            "id": 1,
+                            "nombre": "Arroz",
+                            "codigo": "PROD-001",
+                            "precio": 3800.0,
+                            "categoria_id": 1,
+                            "categoria": "Granos"
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Producto o categoría no encontrada",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "producto_inexistente": {
+                            "summary": "Producto no existe",
+                            "value": {
+                                "message": "El producto seleccionado no existe",
+                                "success": False
+                            }
+                        },
+                        "categoria_inexistente": {
+                            "summary": "Categoría no existe",
+                            "value": {
+                                "message": "La categoría seleccionada no existe",
+                                "success": False
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "Código asignado a otro producto",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El código del producto ya se encuentra registrado en otro producto",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al guardar los cambios",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible actualizar el producto",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def ActualizarProductoAPI(
+    datos: ProductoActualizar,
+    id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DEL PRODUCTO"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        # INVOCAR EL SERVICIO PARA ACTUALIZAR EL PRODUCTO
+        producto = productoServicio.ActualizarProductoServicio(
+            id,
+            datos.model_dump()
+        )
+
+        # RETORNAR RESPUESTA DE ACTUALIZACIÓN EXITOSA
+        return {
+            "message": "Producto actualizado correctamente",
+            "data": producto,
+            "success": True
+        }
+
+    except LookupError as error:
+        # RETORNAR NO ENCONTRADO SI EL PRODUCTO O LA CATEGORÍA NO EXISTEN
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        # RETORNAR CONFLICTO SI EL CÓDIGO YA PERTENECE A OTRO PRODUCTO
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except Exception:
+        # RETORNAR ERROR INTERNO SI FALLA EL GUARDADO DE LOS CAMBIOS
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible actualizar el producto",
                 "success": False
             }
         )
