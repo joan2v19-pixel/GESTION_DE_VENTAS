@@ -14,3 +14,14 @@ def ConsultarExistenciasProductoServicio(producto_id: int) -> dict:
 # SERVICIO PARA VALIDAR LA DISPONIBILIDAD DE PRODUCTOS ANTES DE UNA VENTA
 def ValidarDisponibilidadServicio(productos_solicitados: list[dict]) -> dict:
     return inventarioDominio.ValidarDisponibilidadDominio(productos_solicitados)
+
+
+# SERVICIO PARA DESCONTAR EXISTENCIAS DE UNA VENTA CONFIRMADA
+def DescontarExistenciasVentaServicio(
+    productos_venta: list[dict],
+    estado_venta: str
+) -> list[dict]:
+    return inventarioDominio.DescontarExistenciasVentaDominio(
+        productos_venta,
+        estado_venta
+    )

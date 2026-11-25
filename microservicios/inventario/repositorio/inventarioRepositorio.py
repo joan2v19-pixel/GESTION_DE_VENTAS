@@ -25,3 +25,19 @@ def ObtenerInventarioPorProductoIdRepositorio(producto_id: int) -> dict | None:
             return inventario
 
     return None
+
+
+# ACTUALIZAR LA CANTIDAD DISPONIBLE DE UN PRODUCTO EN EL INVENTARIO
+def ActualizarCantidadInventarioRepositorio(
+    producto_id: int,
+    nueva_cantidad: int
+) -> dict | None:
+
+    inventario = ObtenerInventarioPorProductoIdRepositorio(producto_id)
+
+    if inventario is None:
+        return None
+
+    inventario["cantidad_inicial"] = nueva_cantidad
+
+    return inventario
