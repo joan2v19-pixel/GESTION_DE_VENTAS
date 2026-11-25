@@ -1,3 +1,5 @@
+import math
+
 from microservicios.clientes.servicio import clienteServicio
 from microservicios.inventario.repositorio import inventarioRepositorio
 from microservicios.inventario.servicio import inventarioServicio
@@ -148,6 +150,65 @@ def EliminarDetalleVentaDominio(venta_id: int, producto_id: int) -> dict:
     }
 
 
+# CALCULAR SUBTOTALES Y TOTAL DE UNA VENTA
+def CalcularTotalesVentaDominio(venta_id: int) -> dict:
+
+    # VERIFICAR QUE LA VENTA EXISTA
+    venta = ventaRepositorio.ObtenerVentaPorIdRepositorio(venta_id)
+
+    if venta is None:
+        raise LookupError("La venta seleccionada no existe")
+
+    # IMPEDIR CALCULAR SI NO HAY PRODUCTOS EN EL DETALLE
+    if not venta["productos"]:
+        raise ValueError("Debe agregar al menos un producto al detalle de la venta")
+
+    productos_calculados = []
+
+    for item in venta["productos"]:
+        producto_id = item["producto_id"]
+        cantidad = item["cantidad"]
+
+        if isinstance(cantidad, bool) or not isinstance(cantidad, int) or cantidad <= 0:
+            raise ValueError(
+                f"La cantidad del producto ID {producto_id} no es válida para el cálculo"
+            )
+
+        producto = productoServicio.ObtenerProductoPorIdServicio(producto_id)
+        if producto is None:
+            raise LookupError(f"El producto con ID {producto_id} no existe")
+
+        precio_unitario = producto.get("precio")
+        if (
+            isinstance(precio_unitario, bool)
+            or not isinstance(precio_unitario, (int, float))
+            or not math.isfinite(precio_unitario)
+            or precio_unitario <= 0
+        ):
+            raise ValueError(
+                f"El producto '{producto['nombre']}' presenta un problema con su precio"
+            )
+
+        precio_redondeado = round(float(precio_unitario), 2)
+        subtotal = round(precio_redondeado * cantidad, 2)
+
+        productos_calculados.append({
+            "producto_id": producto_id,
+            "nombre": producto["nombre"],
+            "precio_unitario": precio_redondeado,
+            "cantidad": cantidad,
+            "subtotal": subtotal
+        })
+
+    total_venta = round(sum(p["subtotal"] for p in productos_calculados), 2)
+
+    return {
+        "venta_id": venta_id,
+        "productos": productos_calculados,
+        "total_venta": total_venta
+    }
+
+
 # CONFIRMAR UNA VENTA Y DESCONTAR EXISTENCIAS DEL INVENTARIO DE FORMA CONSISTENTE
 def ConfirmarVentaDominio(venta_id: int) -> dict:
 
@@ -164,6 +225,9 @@ def ConfirmarVentaDominio(venta_id: int) -> dict:
     # IMPEDIR CONTINUAR SI LA VENTA NO TIENE PRODUCTOS EN SU DETALLE
     if not venta["productos"]:
         raise ValueError("Debe agregar al menos un producto al detalle de la venta")
+
+    # CALCULAR TOTALES PARA VALIDAR PRECIOS Y REGISTRAR EL IMPORTE TOTAL
+    totales_venta = CalcularTotalesVentaDominio(venta_id)
 
     # VALIDAR DISPONIBILIDAD ANTES DE REALIZAR CUALQUIER DESCUENTO
     productos_para_validar = [
@@ -214,5 +278,6 @@ def ConfirmarVentaDominio(venta_id: int) -> dict:
     return {
         "venta_id": venta_id,
         "estado": "confirmada",
-        "productos": resumen_descuento
+        "productos": resumen_descuento,
+        "total_venta": totales_venta["total_venta"]
     }

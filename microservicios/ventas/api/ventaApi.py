@@ -549,3 +549,133 @@ def EliminarDetalleVentaAPI(
                 "success": False
             }
         )
+
+
+# CALCULAR SUBTOTALES Y TOTAL DE UNA VENTA
+@router.get(
+    "/{venta_id}/totales",
+    status_code=status.HTTP_200_OK,
+    summary="Calcular subtotales y total de una venta",
+    description=(
+        "Calcula automáticamente el subtotal de cada producto incluido en el detalle "
+        "(subtotal = precio_unitario * cantidad) y el importe total de la venta "
+        "(total_venta = suma de todos los subtotales). Rechaza el cálculo si la venta "
+        "no tiene productos o si algún producto presenta un precio inválido."
+    ),
+    responses={
+        200: {
+            "description": "Cálculo de la venta realizado correctamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Cálculo de la venta realizado correctamente",
+                        "data": {
+                            "venta_id": 1,
+                            "productos": [
+                                {
+                                    "producto_id": 15,
+                                    "nombre": "Producto A",
+                                    "precio_unitario": 10000.0,
+                                    "cantidad": 2,
+                                    "subtotal": 20000.0
+                                },
+                                {
+                                    "producto_id": 18,
+                                    "nombre": "Producto B",
+                                    "precio_unitario": 5000.0,
+                                    "cantidad": 3,
+                                    "subtotal": 15000.0
+                                }
+                            ],
+                            "total_venta": 35000.0
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Venta o producto no encontrado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "La venta seleccionada no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "Detalle vacío, cantidad inválida o precio inválido",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "detalle_vacio": {
+                            "summary": "Venta sin productos",
+                            "value": {
+                                "message": "Debe agregar al menos un producto al detalle de la venta",
+                                "success": False
+                            }
+                        },
+                        "precio_invalido": {
+                            "summary": "Producto con precio inválido",
+                            "value": {
+                                "message": "El producto 'Arroz' presenta un problema con su precio",
+                                "success": False
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al calcular los totales de la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible calcular los totales de la venta",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def CalcularTotalesVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        totales = ventaServicio.CalcularTotalesVentaServicio(venta_id)
+        return {
+            "message": "Cálculo de la venta realizado correctamente",
+            "data": totales,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible calcular los totales de la venta",
+                "success": False
+            }
+        )

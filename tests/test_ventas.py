@@ -21,6 +21,7 @@ from microservicios.ventas.api.dtos import (
 from microservicios.ventas.api.ventaApi import (
     ActualizarDetalleVentaAPI,
     AgregarDetalleVentaAPI,
+    CalcularTotalesVentaAPI,
     ConfirmarVentaAPI,
     ConsultarDetalleVentaAPI,
     ConsultarVentasAPI,
@@ -510,6 +511,164 @@ class TestDetalleVenta(unittest.TestCase):
             "delete",
             esquema["paths"]["/api/v1/ventas/{venta_id}/detalles/{producto_id}"]
         )
+
+
+# PRUEBAS UNITARIAS PARA CALCULAR SUBTOTALES Y TOTAL DE UNA VENTA
+class TestTotalesVenta(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        ventaRepositorio.ventas.clear()
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+        clienteRepositorio.clientes.clear()
+
+        clienteRepositorio.RegistrarClienteRepositorio({
+            "identificacion": "1234567890",
+            "nombre": "Juan Perez",
+            "telefono": "3001234567",
+            "correo": "juan@ejemplo.com"
+        })
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Producto A",
+            "codigo": "PROD-015",
+            "precio": 10000.0,
+            "categoria_id": 1
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Producto B",
+            "codigo": "PROD-018",
+            "precio": 5000.0,
+            "categoria_id": 1
+        })
+
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+        RegistrarVentaAPI(VentaRegistro(cliente_id=1), self.usuario_autenticado)
+
+    # CASO 1: CALCULAR EL SUBTOTAL DE UN PRODUCTO
+    def test_calcular_subtotal_un_producto(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            1,
+            self.usuario_autenticado
+        )
+
+        respuesta = CalcularTotalesVentaAPI(1, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Cálculo de la venta realizado correctamente")
+        self.assertEqual(respuesta["data"]["productos"][0]["precio_unitario"], 10000.0)
+        self.assertEqual(respuesta["data"]["productos"][0]["cantidad"], 2)
+        self.assertEqual(respuesta["data"]["productos"][0]["subtotal"], 20000.0)
+        self.assertEqual(respuesta["data"]["total_venta"], 20000.0)
+
+    # CASO 2: CALCULAR EL TOTAL DE VARIOS PRODUCTOS
+    def test_calcular_total_varios_productos(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=3),
+            1,
+            self.usuario_autenticado
+        )
+
+        respuesta = CalcularTotalesVentaAPI(1, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["data"]["productos"][0]["subtotal"], 20000.0)
+        self.assertEqual(respuesta["data"]["productos"][1]["subtotal"], 15000.0)
+        self.assertEqual(respuesta["data"]["total_venta"], 35000.0)
+
+    # CASO 3: RECALCULAR DESPUÉS DE MODIFICAR UNA CANTIDAD
+    def test_recalcular_al_modificar_cantidad(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=3),
+            1,
+            self.usuario_autenticado
+        )
+
+        ActualizarDetalleVentaAPI(
+            DetalleVentaActualizar(cantidad=4),
+            venta_id=1,
+            producto_id=1,
+            usuario_autenticado=self.usuario_autenticado
+        )
+
+        respuesta = CalcularTotalesVentaAPI(1, self.usuario_autenticado)
+        self.assertEqual(respuesta["data"]["productos"][0]["subtotal"], 40000.0)
+        self.assertEqual(respuesta["data"]["total_venta"], 55000.0)
+
+    # CASO 4: RECALCULAR DESPUÉS DE RETIRAR UN PRODUCTO
+    def test_recalcular_al_retirar_producto(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=3),
+            1,
+            self.usuario_autenticado
+        )
+
+        EliminarDetalleVentaAPI(1, 1, self.usuario_autenticado)
+
+        respuesta = CalcularTotalesVentaAPI(1, self.usuario_autenticado)
+        self.assertEqual(len(respuesta["data"]["productos"]), 1)
+        self.assertEqual(respuesta["data"]["productos"][0]["subtotal"], 15000.0)
+        self.assertEqual(respuesta["data"]["total_venta"], 15000.0)
+
+    # CASO 5: INTENTAR CALCULAR UNA VENTA SIN PRODUCTOS
+    def test_impedir_calculo_venta_sin_productos(self):
+        respuesta = CalcularTotalesVentaAPI(1, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 409)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(
+            cuerpo["message"],
+            "Debe agregar al menos un producto al detalle de la venta"
+        )
+
+    # CASO 6: PRODUCTO CON PRECIO INVÁLIDO
+    def test_producto_con_precio_invalido(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            1,
+            self.usuario_autenticado
+        )
+        productoRepositorio.ObtenerProductoPorIdRepositorio(1)["precio"] = -100
+
+        respuesta = CalcularTotalesVentaAPI(1, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 409)
+        self.assertFalse(cuerpo["success"])
+        self.assertIn("presenta un problema con su precio", cuerpo["message"])
+
+    # VERIFICAR QUE EL ENDPOINT DE TOTALES ESTÉ EN OPENAPI / SWAGGER
+    def test_documentacion_openapi_totales_venta(self):
+        esquema = app.openapi()
+        ruta = "/api/v1/ventas/{venta_id}/totales"
+        self.assertIn(ruta, esquema["paths"])
+        self.assertIn("get", esquema["paths"][ruta])
 
 
 if __name__ == "__main__":

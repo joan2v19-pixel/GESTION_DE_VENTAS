@@ -47,3 +47,8 @@ def ActualizarDetalleVentaServicio(
 # SERVICIO PARA RETIRAR UN PRODUCTO DEL DETALLE DE UNA VENTA
 def EliminarDetalleVentaServicio(venta_id: int, producto_id: int) -> dict:
     return ventaDominio.EliminarDetalleVentaDominio(venta_id, producto_id)
+
+
+# SERVICIO PARA CALCULAR SUBTOTALES Y TOTAL DE UNA VENTA
+def CalcularTotalesVentaServicio(venta_id: int) -> dict:
+    return ventaDominio.CalcularTotalesVentaDominio(venta_id)
