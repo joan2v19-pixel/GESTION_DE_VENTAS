@@ -18,7 +18,98 @@ router = APIRouter(
 )
 
 
-# REGISTRAR UN NUEVO PRODUCTO
+# 1. CONSULTAR TODOS LOS PRODUCTOS REGISTRADOS
+@router.get(
+    "/",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar todos los productos",
+    description=(
+        "Obtiene el listado completo de productos registrados en el sistema con su "
+        "identificador, nombre, código, precio y categoría asociada. Si no existen "
+        "registros, retorna una lista vacía."
+    ),
+    responses={
+        200: {
+            "description": "Consulta de productos exitosa o sin registros",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "con_registros": {
+                            "summary": "Productos encontrados",
+                            "value": {
+                                "message": "Consulta de productos exitosa",
+                                "data": [
+                                    {
+                                        "id": 1,
+                                        "nombre": "Arroz",
+                                        "codigo": "PROD-001",
+                                        "precio": 3500.0,
+                                        "categoria_id": 1,
+                                        "categoria": "Granos"
+                                    }
+                                ],
+                                "success": True
+                            }
+                        },
+                        "sin_registros": {
+                            "summary": "Sin productos registrados",
+                            "value": {
+                                "message": "No existen productos registrados",
+                                "data": [],
+                                "success": True
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar los productos",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible consultar los productos",
+                        "data": [],
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def ConsultarProductosAPI(
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        # CONSULTAR LOS PRODUCTOS DESDE EL SERVICIO
+        productos = productoServicio.ConsultarProductosServicio()
+
+        if not productos:
+            return {
+                "message": "No existen productos registrados",
+                "data": [],
+                "success": True
+            }
+
+        return {
+            "message": "Consulta de productos exitosa",
+            "data": productos,
+            "success": True
+        }
+
+    except Exception:
+        # RETORNAR ERROR CONTROLADO SI FALLA LA CONSULTA
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible consultar los productos",
+                "data": [],
+                "success": False
+            }
+        )
+
+
+# 2. REGISTRAR UN NUEVO PRODUCTO
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
@@ -130,98 +221,7 @@ def RegistrarProductoAPI(
         )
 
 
-# CONSULTAR TODOS LOS PRODUCTOS REGISTRADOS
-@router.get(
-    "/",
-    status_code=status.HTTP_200_OK,
-    summary="Consultar todos los productos",
-    description=(
-        "Obtiene el listado completo de productos registrados en el sistema con su "
-        "identificador, nombre, código, precio y categoría asociada. Si no existen "
-        "registros, retorna una lista vacía."
-    ),
-    responses={
-        200: {
-            "description": "Consulta de productos exitosa o sin registros",
-            "content": {
-                "application/json": {
-                    "examples": {
-                        "con_registros": {
-                            "summary": "Productos encontrados",
-                            "value": {
-                                "message": "Consulta de productos exitosa",
-                                "data": [
-                                    {
-                                        "id": 1,
-                                        "nombre": "Arroz",
-                                        "codigo": "PROD-001",
-                                        "precio": 3500.0,
-                                        "categoria_id": 1,
-                                        "categoria": "Granos"
-                                    }
-                                ],
-                                "success": True
-                            }
-                        },
-                        "sin_registros": {
-                            "summary": "Sin productos registrados",
-                            "value": {
-                                "message": "No existen productos registrados",
-                                "data": [],
-                                "success": True
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        500: {
-            "description": "Error interno al consultar los productos",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "No fue posible consultar los productos",
-                        "data": [],
-                        "success": False
-                    }
-                }
-            }
-        }
-    }
-)
-def ConsultarProductosAPI(
-    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
-):
-    try:
-        # CONSULTAR LOS PRODUCTOS DESDE EL SERVICIO
-        productos = productoServicio.ConsultarProductosServicio()
-
-        if not productos:
-            return {
-                "message": "No existen productos registrados",
-                "data": [],
-                "success": True
-            }
-
-        return {
-            "message": "Consulta de productos exitosa",
-            "data": productos,
-            "success": True
-        }
-
-    except Exception:
-        # RETORNAR ERROR CONTROLADO SI FALLA LA CONSULTA
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "message": "No fue posible consultar los productos",
-                "data": [],
-                "success": False
-            }
-        )
-
-
-# BUSCAR PRODUCTOS POR NOMBRE O CÓDIGO
+# 3. BUSCAR PRODUCTOS POR NOMBRE O CÓDIGO
 @router.get(
     "/buscar",
     status_code=status.HTTP_200_OK,
@@ -393,7 +393,7 @@ def BuscarProductosAPI(
         )
 
 
-# CONSULTAR UN PRODUCTO POR ID
+# 4. CONSULTAR UN PRODUCTO POR ID
 @router.get(
     "/{id}",
     status_code=status.HTTP_200_OK,
@@ -479,7 +479,7 @@ def ObtenerProductoPorIdAPI(
         )
 
 
-# ACTUALIZAR UN PRODUCTO EXISTENTE
+# 5. ACTUALIZAR UN PRODUCTO EXISTENTE
 @router.put(
     "/{id}",
     status_code=status.HTTP_200_OK,

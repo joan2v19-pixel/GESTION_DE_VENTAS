@@ -13,7 +13,44 @@ router = APIRouter(
 )
 
 
-# GENERAR UN COMPROBANTE A PARTIR DE UNA VENTA CONFIRMADA
+# 1. CONSULTAR TODOS LOS COMPROBANTES GENERADOS
+@router.get(
+    "/",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar comprobantes generados",
+    description="Obtiene el listado de todos los comprobantes generados en el sistema."
+)
+def ConsultarComprobantesAPI(
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        comprobantes = comprobanteServicio.ConsultarComprobantesServicio()
+
+        if not comprobantes:
+            return {
+                "message": "No existen comprobantes registrados",
+                "data": [],
+                "success": True
+            }
+
+        return {
+            "message": "Consulta de comprobantes exitosa",
+            "data": comprobantes,
+            "success": True
+        }
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible consultar los comprobantes",
+                "data": [],
+                "success": False
+            }
+        )
+
+
+# 2. GENERAR UN COMPROBANTE A PARTIR DE UNA VENTA CONFIRMADA
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
@@ -140,44 +177,7 @@ def GenerarComprobanteAPI(
         )
 
 
-# CONSULTAR TODOS LOS COMPROBANTES GENERADOS
-@router.get(
-    "/",
-    status_code=status.HTTP_200_OK,
-    summary="Consultar comprobantes generados",
-    description="Obtiene el listado de todos los comprobantes generados en el sistema."
-)
-def ConsultarComprobantesAPI(
-    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
-):
-    try:
-        comprobantes = comprobanteServicio.ConsultarComprobantesServicio()
-
-        if not comprobantes:
-            return {
-                "message": "No existen comprobantes registrados",
-                "data": [],
-                "success": True
-            }
-
-        return {
-            "message": "Consulta de comprobantes exitosa",
-            "data": comprobantes,
-            "success": True
-        }
-
-    except Exception:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "message": "No fue posible consultar los comprobantes",
-                "data": [],
-                "success": False
-            }
-        )
-
-
-# CONSULTAR UN COMPROBANTE POR SU IDENTIFICADOR
+# 3. CONSULTAR UN COMPROBANTE POR SU IDENTIFICADOR
 @router.get(
     "/{comprobante_id}",
     status_code=status.HTTP_200_OK,

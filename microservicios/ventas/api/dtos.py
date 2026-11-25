@@ -60,10 +60,6 @@ class VentaRegistro(BaseModel):
         description="IDENTIFICADOR DEL CLIENTE ASOCIADO A LA VENTA",
         examples=[1]
     )
-    productos: list[VentaProductoItem] = Field(
-        default_factory=list,
-        description="LISTADO OPCIONAL DE PRODUCTOS Y CANTIDADES INICIALES DE LA VENTA"
-    )
 
     model_config = ConfigDict(
         extra="forbid"

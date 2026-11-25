@@ -21,90 +21,7 @@ router = APIRouter(
 )
 
 
-# REGISTRAR UNA NUEVA VENTA ASOCIADA A UN CLIENTE EN ESTADO PENDIENTE
-@router.post(
-    "/",
-    status_code=status.HTTP_201_CREATED,
-    summary="Registrar una venta asociada a un cliente",
-    description=(
-        "Inicia el registro de una nueva venta en estado pendiente asociándola a un "
-        "cliente previamente registrado en el sistema. Permite continuar posteriormente "
-        "con el registro de productos y cantidades."
-    ),
-    responses={
-        201: {
-            "description": "Venta iniciada correctamente",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "Venta iniciada correctamente",
-                        "data": {
-                            "venta_id": 1,
-                            "cliente_id": 1,
-                            "estado": "pendiente",
-                            "productos": []
-                        },
-                        "success": True
-                    }
-                }
-            }
-        },
-        404: {
-            "description": "El cliente seleccionado no existe",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "El cliente seleccionado no existe",
-                        "success": False
-                    }
-                }
-            }
-        },
-        500: {
-            "description": "Error interno al registrar la venta",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "No fue posible registrar la venta",
-                        "success": False
-                    }
-                }
-            }
-        }
-    }
-)
-def RegistrarVentaAPI(
-    datos: VentaRegistro,
-    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
-):
-    try:
-        venta = ventaServicio.RegistrarVentaServicio(datos.model_dump())
-        return {
-            "message": "Venta iniciada correctamente",
-            "data": venta,
-            "success": True
-        }
-
-    except LookupError as error:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "message": str(error),
-                "success": False
-            }
-        )
-
-    except Exception:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "message": "No fue posible registrar la venta",
-                "success": False
-            }
-        )
-
-
-# CONSULTAR TODAS LAS VENTAS REGISTRADAS Y BUSCAR POR NÚMERO, CLIENTE O FECHA
+# 1. CONSULTAR TODAS LAS VENTAS REGISTRADAS Y BUSCAR POR NÚMERO, CLIENTE O FECHA
 @router.get(
     "/",
     status_code=status.HTTP_200_OK,
@@ -294,7 +211,90 @@ def ConsultarVentasAPI(
         )
 
 
-# CONSULTAR UNA VENTA POR SU IDENTIFICADOR
+# 2. REGISTRAR UNA NUEVA VENTA ASOCIADA A UN CLIENTE EN ESTADO PENDIENTE
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar una venta asociada a un cliente",
+    description=(
+        "Inicia el registro de una nueva venta en estado pendiente asociándola a un "
+        "cliente previamente registrado en el sistema. Permite continuar posteriormente "
+        "con el registro de productos y cantidades."
+    ),
+    responses={
+        201: {
+            "description": "Venta iniciada correctamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Venta iniciada correctamente",
+                        "data": {
+                            "venta_id": 1,
+                            "cliente_id": 1,
+                            "estado": "pendiente",
+                            "productos": []
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "El cliente seleccionado no existe",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El cliente seleccionado no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al registrar la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible registrar la venta",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def RegistrarVentaAPI(
+    datos: VentaRegistro,
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        venta = ventaServicio.RegistrarVentaServicio(datos.model_dump())
+        return {
+            "message": "Venta iniciada correctamente",
+            "data": venta,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible registrar la venta",
+                "success": False
+            }
+        )
+
+
+# 3. CONSULTAR UNA VENTA POR SU IDENTIFICADOR
 @router.get(
     "/{venta_id}",
     status_code=status.HTTP_200_OK,
@@ -394,172 +394,55 @@ def ObtenerVentaPorIdAPI(
         )
 
 
-# CONFIRMAR UNA VENTA Y DESCONTAR EXISTENCIAS DEL INVENTARIO
-@router.post(
-    "/{venta_id}/confirmar",
+# 4. CONSULTAR EL DETALLE DE PRODUCTOS Y CANTIDADES DE UNA VENTA
+@router.get(
+    "/{venta_id}/detalles",
     status_code=status.HTTP_200_OK,
-    summary="Confirmar venta y descontar existencias del inventario",
-    description=(
-        "Confirma una venta registrada en estado pendiente y descuenta automáticamente "
-        "las cantidades vendidas del inventario. Valida que la venta exista, que no haya "
-        "sido confirmada previamente, que todos los productos tengan existencias suficientes "
-        "y garantiza consistencia ante errores."
-    ),
-    responses={
-        200: {
-            "description": "Venta confirmada e inventario actualizado correctamente",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "Venta confirmada e inventario actualizado correctamente",
-                        "data": {
-                            "venta_id": 1,
-                            "estado": "confirmada",
-                            "productos": [
-                                {
-                                    "producto_id": 1,
-                                    "cantidad_vendida": 5,
-                                    "existencias_anteriores": 100,
-                                    "existencias_actuales": 95
-                                },
-                                {
-                                    "producto_id": 2,
-                                    "cantidad_vendida": 3,
-                                    "existencias_anteriores": 20,
-                                    "existencias_actuales": 17
-                                }
-                            ]
-                        },
-                        "success": True
-                    }
-                }
-            }
-        },
-        400: {
-            "description": "El identificador de la venta en el cuerpo no coincide con la ruta",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "El identificador de la venta en la solicitud no coincide con el de la ruta",
-                        "success": False
-                    }
-                }
-            }
-        },
-        404: {
-            "description": "La venta seleccionada no existe",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "La venta seleccionada no existe",
-                        "success": False
-                    }
-                }
-            }
-        },
-        409: {
-            "description": "Existencias insuficientes o venta ya confirmada",
-            "content": {
-                "application/json": {
-                    "examples": {
-                        "existencias_insuficientes": {
-                            "summary": "Inventario insuficiente",
-                            "value": {
-                                "message": "No hay suficiente inventario para completar la operación: producto ID 1 (solicitado: 150, disponible: 100)",
-                                "success": False
-                            }
-                        },
-                        "venta_ya_confirmada": {
-                            "summary": "Venta ya confirmada previamente",
-                            "value": {
-                                "message": "La venta ya fue confirmada y sus existencias ya fueron descontadas",
-                                "success": False
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        500: {
-            "description": "Error interno al actualizar el inventario o confirmar la venta",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "message": "No fue posible confirmar la venta y actualizar el inventario",
-                        "success": False
-                    }
-                }
-            }
-        }
-    }
+    summary="Consultar detalle de una venta",
+    description="Obtiene los productos y cantidades agregadas al detalle de una venta."
 )
-def ConfirmarVentaAPI(
+def ConsultarDetalleVentaAPI(
     venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
-    datos: ConfirmarVentaSolicitud | None = Body(default=None),
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
-    # VALIDAR QUE SE HAYA CONFIRMADO LA OPERACIÓN SI SE ENVÍA EL INDICADOR confirmar
-    if datos is not None and datos.confirmar is False:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "message": "Debe confirmar la operación enviando confirmar en true",
-                "success": False
-            }
-        )
-
-    # VALIDAR COHERENCIA SI SE ENVÍA venta_id EN EL CUERPO DE LA SOLICITUD
-    if datos is not None and datos.venta_id is not None and datos.venta_id != venta_id:
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "message": "El identificador de la venta en la solicitud no coincide con el de la ruta",
-                "success": False
-            }
-        )
-
     try:
-        # INVOCAR EL SERVICIO PARA CONFIRMAR LA VENTA Y DESCONTAR EXISTENCIAS
-        resultado = ventaServicio.ConfirmarVentaServicio(venta_id)
+        detalles = ventaServicio.ConsultarDetalleVentaServicio(venta_id)
+
+        if not detalles:
+            return {
+                "message": "El detalle de la venta está vacío",
+                "data": [],
+                "success": True
+            }
 
         return {
-            "message": "Venta confirmada e inventario actualizado correctamente",
-            "data": resultado,
+            "message": "Consulta del detalle de la venta exitosa",
+            "data": detalles,
             "success": True
         }
 
     except LookupError as error:
-        # RETORNAR NO ENCONTRADO SI LA VENTA NO EXISTE
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
-                "success": False
-            }
-        )
-
-    except ValueError as error:
-        # RETORNAR CONFLICTO SI FALTAN EXISTENCIAS O LA VENTA YA FUE CONFIRMADA
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content={
-                "message": str(error),
+                "data": [],
                 "success": False
             }
         )
 
     except Exception:
-        # RETORNAR ERROR INTERNO SI FALLA LA ACTUALIZACIÓN DEL INVENTARIO
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
-                "message": "No fue posible confirmar la venta y actualizar el inventario",
+                "message": "No fue posible consultar el detalle de la venta",
+                "data": [],
                 "success": False
             }
         )
 
 
-# AGREGAR UN PRODUCTO Y CANTIDAD AL DETALLE DE UNA VENTA PENDIENTE
+# 5. AGREGAR UN PRODUCTO Y CANTIDAD AL DETALLE DE UNA VENTA PENDIENTE
 @router.post(
     "/{venta_id}/detalles",
     status_code=status.HTTP_201_CREATED,
@@ -665,55 +548,7 @@ def AgregarDetalleVentaAPI(
         )
 
 
-# CONSULTAR EL DETALLE DE PRODUCTOS Y CANTIDADES DE UNA VENTA
-@router.get(
-    "/{venta_id}/detalles",
-    status_code=status.HTTP_200_OK,
-    summary="Consultar detalle de una venta",
-    description="Obtiene los productos y cantidades agregadas al detalle de una venta."
-)
-def ConsultarDetalleVentaAPI(
-    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
-    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
-):
-    try:
-        detalles = ventaServicio.ConsultarDetalleVentaServicio(venta_id)
-
-        if not detalles:
-            return {
-                "message": "El detalle de la venta está vacío",
-                "data": [],
-                "success": True
-            }
-
-        return {
-            "message": "Consulta del detalle de la venta exitosa",
-            "data": detalles,
-            "success": True
-        }
-
-    except LookupError as error:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "message": str(error),
-                "data": [],
-                "success": False
-            }
-        )
-
-    except Exception:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "message": "No fue posible consultar el detalle de la venta",
-                "data": [],
-                "success": False
-            }
-        )
-
-
-# MODIFICAR LA CANTIDAD DE UN PRODUCTO EN EL DETALLE DE UNA VENTA PENDIENTE
+# 6. MODIFICAR LA CANTIDAD DE UN PRODUCTO EN EL DETALLE DE UNA VENTA PENDIENTE
 @router.put(
     "/{venta_id}/detalles/{producto_id}",
     status_code=status.HTTP_200_OK,
@@ -766,7 +601,7 @@ def ActualizarDetalleVentaAPI(
         )
 
 
-# RETIRAR UN PRODUCTO DEL DETALLE DE UNA VENTA PENDIENTE
+# 7. RETIRAR UN PRODUCTO DEL DETALLE DE UNA VENTA PENDIENTE
 @router.delete(
     "/{venta_id}/detalles/{producto_id}",
     status_code=status.HTTP_200_OK,
@@ -817,7 +652,7 @@ def EliminarDetalleVentaAPI(
         )
 
 
-# CALCULAR SUBTOTALES Y TOTAL DE UNA VENTA
+# 8. CALCULAR SUBTOTALES Y TOTAL DE UNA VENTA
 @router.get(
     "/{venta_id}/totales",
     status_code=status.HTTP_200_OK,
@@ -947,7 +782,7 @@ def CalcularTotalesVentaAPI(
         )
 
 
-# VALIDAR LA DISPONIBILIDAD DE INVENTARIO ANTES DE CONFIRMAR UNA VENTA
+# 9. VALIDAR LA DISPONIBILIDAD DE INVENTARIO ANTES DE CONFIRMAR UNA VENTA
 @router.post(
     "/{venta_id}/validar-inventario",
     status_code=status.HTTP_200_OK,
@@ -1099,6 +934,171 @@ def ValidarInventarioVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible validar la disponibilidad del inventario",
+                "success": False
+            }
+        )
+
+
+# 10. CONFIRMAR UNA VENTA Y DESCONTAR EXISTENCIAS DEL INVENTARIO
+@router.post(
+    "/{venta_id}/confirmar",
+    status_code=status.HTTP_200_OK,
+    summary="Confirmar venta y descontar existencias del inventario",
+    description=(
+        "Confirma una venta registrada en estado pendiente y descuenta automáticamente "
+        "las cantidades vendidas del inventario. Valida que la venta exista, que no haya "
+        "sido confirmada previamente, que todos los productos tengan existencias suficientes "
+        "y garantiza consistencia ante errores."
+    ),
+    responses={
+        200: {
+            "description": "Venta confirmada e inventario actualizado correctamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Venta confirmada e inventario actualizado correctamente",
+                        "data": {
+                            "venta_id": 1,
+                            "estado": "confirmada",
+                            "cliente_id": 1,
+                            "fecha_confirmacion": "2026-11-25T15:10:00",
+                            "subtotal": 26500.0,
+                            "total": 26500.0,
+                            "total_venta": 26500.0,
+                            "inventario_actualizado": True,
+                            "productos": [
+                                {
+                                    "producto_id": 1,
+                                    "cantidad_vendida": 5,
+                                    "existencias_anteriores": 100,
+                                    "existencias_actuales": 95
+                                }
+                            ]
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Solicitud de confirmación inválida",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El identificador de la venta en la solicitud no coincide con el de la ruta",
+                        "success": False
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "La venta seleccionada no existe",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "La venta seleccionada no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "Existencias insuficientes, detalle vacío o venta ya confirmada",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "existencias_insuficientes": {
+                            "summary": "Inventario insuficiente",
+                            "value": {
+                                "message": "No hay suficiente inventario para completar la operación: producto ID 1 (solicitado: 150, disponible: 100)",
+                                "success": False
+                            }
+                        },
+                        "venta_ya_confirmada": {
+                            "summary": "Venta ya confirmada previamente",
+                            "value": {
+                                "message": "La venta ya fue confirmada y sus existencias ya fueron descontadas",
+                                "success": False
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al actualizar el inventario o confirmar la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible confirmar la venta y actualizar el inventario",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def ConfirmarVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    datos: ConfirmarVentaSolicitud | None = Body(default=None),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    # VALIDAR QUE SE HAYA CONFIRMADO LA OPERACIÓN SI SE ENVÍA EL INDICADOR confirmar
+    if datos is not None and datos.confirmar is False:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "Debe confirmar la operación enviando confirmar en true",
+                "success": False
+            }
+        )
+
+    # VALIDAR COHERENCIA SI SE ENVÍA venta_id EN EL CUERPO DE LA SOLICITUD
+    if datos is not None and datos.venta_id is not None and datos.venta_id != venta_id:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "El identificador de la venta en la solicitud no coincide con el de la ruta",
+                "success": False
+            }
+        )
+
+    try:
+        # INVOCAR EL SERVICIO PARA CONFIRMAR LA VENTA Y DESCONTAR EXISTENCIAS
+        resultado = ventaServicio.ConfirmarVentaServicio(venta_id)
+
+        return {
+            "message": "Venta confirmada e inventario actualizado correctamente",
+            "data": resultado,
+            "success": True
+        }
+
+    except LookupError as error:
+        # RETORNAR NO ENCONTRADO SI LA VENTA NO EXISTE
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        # RETORNAR CONFLICTO SI FALTAN EXISTENCIAS O LA VENTA YA FUE CONFIRMADA
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except Exception:
+        # RETORNAR ERROR INTERNO SI FALLA LA ACTUALIZACIÓN DEL INVENTARIO
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible confirmar la venta y actualizar el inventario",
                 "success": False
             }
         )

@@ -86,14 +86,15 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
 
     # CASO 1: DESCUENTO EXITOSO DE EXISTENCIAS AL CONFIRMAR UNA VENTA
     def test_descuento_exitoso_al_confirmar_venta(self):
-        RegistrarVentaAPI(
-            VentaRegistro(
-                cliente_id=1,
-                productos=[
-                    {"producto_id": 1, "cantidad": 5},
-                    {"producto_id": 2, "cantidad": 3}
-                ]
-            ),
+        RegistrarVentaAPI(VentaRegistro(cliente_id=1), self.usuario_autenticado)
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=5),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=3),
+            1,
             self.usuario_autenticado
         )
 
@@ -127,14 +128,15 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
 
     # CASO 2: EXISTENCIAS INSUFICIENTES PARA CONFIRMAR LA VENTA
     def test_existencias_insuficientes_impide_confirmar(self):
-        RegistrarVentaAPI(
-            VentaRegistro(
-                cliente_id=1,
-                productos=[
-                    {"producto_id": 1, "cantidad": 5},
-                    {"producto_id": 2, "cantidad": 50}
-                ]
-            ),
+        RegistrarVentaAPI(VentaRegistro(cliente_id=1), self.usuario_autenticado)
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=5),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=50),
+            1,
             self.usuario_autenticado
         )
 
@@ -162,10 +164,13 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
 
     # CASO 3: INTENTO DE DESCONTAR EXISTENCIAS DE UNA VENTA NO CONFIRMADA
     def test_impedir_descuento_de_venta_no_confirmada(self):
-        venta = RegistrarVentaAPI(
-            VentaRegistro(cliente_id=1, productos=[{"producto_id": 1, "cantidad": 5}]),
+        RegistrarVentaAPI(VentaRegistro(cliente_id=1), self.usuario_autenticado)
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=5),
+            1,
             self.usuario_autenticado
-        )["data"]
+        )
+        venta = ventaRepositorio.ObtenerVentaPorIdRepositorio(1)
 
         with self.assertRaises(ValueError):
             inventarioServicio.DescontarExistenciasVentaServicio(
@@ -181,8 +186,10 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
 
     # CASO 4: EVITAR EL DESCUENTO DUPLICADO EN UNA VENTA YA CONFIRMADA
     def test_evitar_descuento_duplicado(self):
-        RegistrarVentaAPI(
-            VentaRegistro(cliente_id=1, productos=[{"producto_id": 1, "cantidad": 5}]),
+        RegistrarVentaAPI(VentaRegistro(cliente_id=1), self.usuario_autenticado)
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=5),
+            1,
             self.usuario_autenticado
         )
 
@@ -206,14 +213,15 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
         side_effect=[{"producto_id": 1, "cantidad_inicial": 95}, None, {"producto_id": 1, "cantidad_inicial": 100}]
     )
     def test_error_actualizacion_inventario_mantiene_consistencia(self, mock_actualizar):
-        RegistrarVentaAPI(
-            VentaRegistro(
-                cliente_id=1,
-                productos=[
-                    {"producto_id": 1, "cantidad": 5},
-                    {"producto_id": 2, "cantidad": 3}
-                ]
-            ),
+        RegistrarVentaAPI(VentaRegistro(cliente_id=1), self.usuario_autenticado)
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=5),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=3),
+            1,
             self.usuario_autenticado
         )
 
