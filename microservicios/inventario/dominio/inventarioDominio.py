@@ -47,3 +47,41 @@ def ConsultarExistenciasProductoDominio(producto_id: int) -> dict:
         "codigo_producto": producto_existente["codigo"],
         "cantidad_disponible": cantidad_disponible
     }
+
+
+# VALIDAR LA DISPONIBILIDAD DE MÚLTIPLES PRODUCTOS ANTES DE CONFIRMAR UNA VENTA
+def ValidarDisponibilidadDominio(productos_solicitados: list[dict]) -> dict:
+
+    detalle_productos = []
+
+    for item in productos_solicitados:
+        producto_id = item["producto_id"]
+        cantidad_solicitada = item["cantidad_solicitada"]
+
+        # VERIFICAR QUE EL PRODUCTO EXISTA EN EL SISTEMA
+        producto_existente = productoServicio.ObtenerProductoPorIdServicio(producto_id)
+
+        if producto_existente is None:
+            raise LookupError(f"El producto con ID {producto_id} no existe")
+
+        # CONSULTAR LAS EXISTENCIAS DISPONIBLES SIN MODIFICAR EL INVENTARIO
+        inventario = inventarioRepositorio.ObtenerInventarioPorProductoIdRepositorio(
+            producto_id
+        )
+        cantidad_disponible = 0 if inventario is None else inventario["cantidad_inicial"]
+        disponible = cantidad_disponible >= cantidad_solicitada
+
+        detalle_productos.append({
+            "producto_id": producto_id,
+            "cantidad_solicitada": cantidad_solicitada,
+            "cantidad_disponible": cantidad_disponible,
+            "disponible": disponible
+        })
+
+    # DETERMINAR SI TODOS LOS PRODUCTOS CUENTAN CON EXISTENCIAS SUFICIENTES
+    disponibilidad_suficiente = all(item["disponible"] for item in detalle_productos)
+
+    return {
+        "disponibilidad_suficiente": disponibilidad_suficiente,
+        "productos": detalle_productos
+    }

@@ -6,10 +6,14 @@ from pydantic import ValidationError
 
 from main import app
 from microservicios.categorias.repositorio import categoriaRepositorio
-from microservicios.inventario.api.dtos import ExistenciasInicialesRegistro
+from microservicios.inventario.api.dtos import (
+    ExistenciasInicialesRegistro,
+    ValidacionDisponibilidadSolicitud
+)
 from microservicios.inventario.api.inventarioApi import (
     ConsultarExistenciasProductoAPI,
-    RegistrarExistenciasInicialesAPI
+    RegistrarExistenciasInicialesAPI,
+    ValidarDisponibilidadAPI
 )
 from microservicios.inventario.repositorio import inventarioRepositorio
 from microservicios.productos.repositorio import productoRepositorio
@@ -227,6 +231,167 @@ class TestConsultaExistencias(unittest.TestCase):
         ruta = "/api/v1/inventario/productos/{producto_id}/existencias"
         self.assertIn(ruta, esquema["paths"])
         self.assertIn("get", esquema["paths"][ruta])
+
+
+# PRUEBAS UNITARIAS PARA LA VALIDACIÓN DE DISPONIBILIDAD ANTES DE UNA VENTA
+class TestValidacionDisponibilidad(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        inventarioRepositorio.inventarios.clear()
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+
+        # REGISTRAR CATEGORÍA, PRODUCTOS Y EXISTENCIAS BASE PARA LAS PRUEBAS
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Arroz",
+            "codigo": "PROD-001",
+            "precio": 3500.0,
+            "categoria_id": 1
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Aceite",
+            "codigo": "PROD-002",
+            "precio": 6500.0,
+            "categoria_id": 1
+        })
+
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+        RegistrarExistenciasInicialesAPI(
+            ExistenciasInicialesRegistro(producto_id=1, cantidad_inicial=100),
+            self.usuario_autenticado
+        )
+        RegistrarExistenciasInicialesAPI(
+            ExistenciasInicialesRegistro(producto_id=2, cantidad_inicial=20),
+            self.usuario_autenticado
+        )
+
+    # CASO 1: TODOS LOS PRODUCTOS TIENEN DISPONIBILIDAD SUFICIENTE
+    def test_disponibilidad_suficiente_todos_los_productos(self):
+        datos = ValidacionDisponibilidadSolicitud(
+            productos=[
+                {"producto_id": 1, "cantidad_solicitada": 5},
+                {"producto_id": 2, "cantidad_solicitada": 3}
+            ]
+        )
+
+        respuesta = ValidarDisponibilidadAPI(datos, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Validación de disponibilidad completada")
+        self.assertTrue(respuesta["data"]["disponibilidad_suficiente"])
+        self.assertEqual(len(respuesta["data"]["productos"]), 2)
+        self.assertTrue(respuesta["data"]["productos"][0]["disponible"])
+        self.assertTrue(respuesta["data"]["productos"][1]["disponible"])
+
+    # CASO 2: UN PRODUCTO NO TIENE EXISTENCIAS SUFICIENTES Y NO SE DESCUENTA EL INVENTARIO
+    def test_disponibilidad_insuficiente_sin_modificar_inventario(self):
+        datos = ValidacionDisponibilidadSolicitud(
+            productos=[
+                {"producto_id": 1, "cantidad_solicitada": 5},
+                {"producto_id": 2, "cantidad_solicitada": 50}
+            ]
+        )
+
+        respuesta = ValidarDisponibilidadAPI(datos, self.usuario_autenticado)
+
+        self.assertFalse(respuesta["success"])
+        self.assertFalse(respuesta["data"]["disponibilidad_suficiente"])
+        self.assertTrue(respuesta["data"]["productos"][0]["disponible"])
+        self.assertFalse(respuesta["data"]["productos"][1]["disponible"])
+        self.assertEqual(respuesta["data"]["productos"][1]["cantidad_solicitada"], 50)
+        self.assertEqual(respuesta["data"]["productos"][1]["cantidad_disponible"], 20)
+
+        # VERIFICAR QUE EL INVENTARIO NO FUE MODIFICADO
+        self.assertEqual(
+            inventarioRepositorio.ObtenerInventarioPorProductoIdRepositorio(1)["cantidad_inicial"],
+            100
+        )
+        self.assertEqual(
+            inventarioRepositorio.ObtenerInventarioPorProductoIdRepositorio(2)["cantidad_inicial"],
+            20
+        )
+
+    # CASO 3: EL USUARIO MODIFICA LA CANTIDAD SOLICITADA Y VUELVE A VALIDAR
+    def test_modificar_cantidad_y_revalidar(self):
+        datos_insuficientes = ValidacionDisponibilidadSolicitud(
+            productos=[{"producto_id": 2, "cantidad_solicitada": 50}]
+        )
+        primera_respuesta = ValidarDisponibilidadAPI(
+            datos_insuficientes,
+            self.usuario_autenticado
+        )
+        self.assertFalse(primera_respuesta["data"]["disponibilidad_suficiente"])
+
+        datos_corregidos = ValidacionDisponibilidadSolicitud(
+            productos=[{"producto_id": 2, "cantidad_solicitada": 10}]
+        )
+        segunda_respuesta = ValidarDisponibilidadAPI(
+            datos_corregidos,
+            self.usuario_autenticado
+        )
+        self.assertTrue(segunda_respuesta["success"])
+        self.assertTrue(segunda_respuesta["data"]["disponibilidad_suficiente"])
+
+    # CASO 4: SE INTENTA VALIDAR UN PRODUCTO INEXISTENTE
+    def test_validar_producto_inexistente(self):
+        datos = ValidacionDisponibilidadSolicitud(
+            productos=[{"producto_id": 999, "cantidad_solicitada": 5}]
+        )
+
+        respuesta = ValidarDisponibilidadAPI(datos, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "El producto con ID 999 no existe")
+
+    # CASO 5: ERROR DURANTE LA CONSULTA DE INVENTARIO
+    @patch(
+        "microservicios.inventario.repositorio.inventarioRepositorio.ObtenerInventarioPorProductoIdRepositorio",
+        side_effect=RuntimeError("Error simulado de base de datos")
+    )
+    def test_error_durante_validacion_disponibilidad(self, mock_consulta):
+        datos = ValidacionDisponibilidadSolicitud(
+            productos=[{"producto_id": 1, "cantidad_solicitada": 5}]
+        )
+
+        respuesta = ValidarDisponibilidadAPI(datos, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(
+            cuerpo["message"],
+            "No fue posible validar la disponibilidad de los productos"
+        )
+
+    # VALIDAR QUE NO SE PERMITAN CANTIDADES INVÁLIDAS NI LISTA VACÍA
+    def test_validaciones_estrictas_disponibilidad(self):
+        with self.assertRaises(ValidationError):
+            ValidacionDisponibilidadSolicitud(productos=[])
+
+        for cantidad_invalida in [0, -3, 2.5, "string", True, None]:
+            with self.assertRaises(ValidationError):
+                ValidacionDisponibilidadSolicitud(
+                    productos=[{"producto_id": 1, "cantidad_solicitada": cantidad_invalida}]
+                )
+
+    # VERIFICAR QUE EL ENDPOINT DE VALIDACIÓN ESTÉ DOCUMENTADO EN OPENAPI / SWAGGER
+    def test_documentacion_openapi_validacion_disponibilidad(self):
+        esquema = app.openapi()
+        ruta = "/api/v1/inventario/validar-disponibilidad"
+        self.assertIn(ruta, esquema["paths"])
+        self.assertIn("post", esquema["paths"][ruta])
 
 
 if __name__ == "__main__":

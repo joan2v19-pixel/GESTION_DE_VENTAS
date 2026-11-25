@@ -2,7 +2,10 @@ from fastapi import APIRouter, Path, status, Depends
 from fastapi.responses import JSONResponse
 
 from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
-from microservicios.inventario.api.dtos import ExistenciasInicialesRegistro
+from microservicios.inventario.api.dtos import (
+    ExistenciasInicialesRegistro,
+    ValidacionDisponibilidadSolicitud
+)
 from microservicios.inventario.servicio import inventarioServicio
 
 
@@ -208,6 +211,138 @@ def ConsultarExistenciasProductoAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible consultar las existencias del producto",
+                "success": False
+            }
+        )
+
+
+# VALIDAR LA DISPONIBILIDAD DE PRODUCTOS ANTES DE CONFIRMAR UNA VENTA
+@router.post(
+    "/validar-disponibilidad",
+    status_code=status.HTTP_200_OK,
+    summary="Validar disponibilidad de productos para una venta",
+    description=(
+        "Verifica que cada producto solicitado exista y cuente con existencias "
+        "disponibles suficientes sin descontar unidades del inventario. Si uno o más "
+        "productos tienen existencias insuficientes, informa los productos afectados."
+    ),
+    responses={
+        200: {
+            "description": "Resultado de la validación de disponibilidad",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "disponibilidad_suficiente": {
+                            "summary": "Todos los productos disponibles",
+                            "value": {
+                                "message": "Validación de disponibilidad completada",
+                                "data": {
+                                    "disponibilidad_suficiente": True,
+                                    "productos": [
+                                        {
+                                            "producto_id": 1,
+                                            "cantidad_solicitada": 5,
+                                            "cantidad_disponible": 100,
+                                            "disponible": True
+                                        },
+                                        {
+                                            "producto_id": 2,
+                                            "cantidad_solicitada": 3,
+                                            "cantidad_disponible": 20,
+                                            "disponible": True
+                                        }
+                                    ]
+                                },
+                                "success": True
+                            }
+                        },
+                        "disponibilidad_insuficiente": {
+                            "summary": "Uno o más productos sin stock suficiente",
+                            "value": {
+                                "message": "Uno o más productos no cuentan con existencias suficientes",
+                                "data": {
+                                    "disponibilidad_suficiente": False,
+                                    "productos": [
+                                        {
+                                            "producto_id": 1,
+                                            "cantidad_solicitada": 150,
+                                            "cantidad_disponible": 100,
+                                            "disponible": False
+                                        }
+                                    ]
+                                },
+                                "success": False
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Uno de los productos solicitados no existe",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El producto con ID 999 no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al validar la disponibilidad",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible validar la disponibilidad de los productos",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def ValidarDisponibilidadAPI(
+    datos: ValidacionDisponibilidadSolicitud,
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        # INVOCAR EL SERVICIO PARA VALIDAR LA DISPONIBILIDAD SIN MODIFICAR EL INVENTARIO
+        resultado = inventarioServicio.ValidarDisponibilidadServicio(
+            datos.model_dump()["productos"]
+        )
+
+        # INFORMAR SI EXISTEN PRODUCTOS CON DISPONIBILIDAD INSUFICIENTE
+        if not resultado["disponibilidad_suficiente"]:
+            return {
+                "message": "Uno o más productos no cuentan con existencias suficientes",
+                "data": resultado,
+                "success": False
+            }
+
+        # RETORNAR CONFIRMACIÓN CUANDO TODOS LOS PRODUCTOS ESTÁN DISPONIBLES
+        return {
+            "message": "Validación de disponibilidad completada",
+            "data": resultado,
+            "success": True
+        }
+
+    except LookupError as error:
+        # RETORNAR NO ENCONTRADO SI ALGÚN PRODUCTO NO EXISTE
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except Exception:
+        # RETORNAR ERROR INTERNO SI FALLA LA CONSULTA DE INVENTARIO
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible validar la disponibilidad de los productos",
                 "success": False
             }
         )

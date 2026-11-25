@@ -9,3 +9,8 @@ def RegistrarExistenciasInicialesServicio(datos_inventario: dict) -> dict:
 # SERVICIO PARA CONSULTAR LAS EXISTENCIAS DISPONIBLES DE UN PRODUCTO
 def ConsultarExistenciasProductoServicio(producto_id: int) -> dict:
     return inventarioDominio.ConsultarExistenciasProductoDominio(producto_id)
+
+
+# SERVICIO PARA VALIDAR LA DISPONIBILIDAD DE PRODUCTOS ANTES DE UNA VENTA
+def ValidarDisponibilidadServicio(productos_solicitados: list[dict]) -> dict:
+    return inventarioDominio.ValidarDisponibilidadDominio(productos_solicitados)
