@@ -130,3 +130,17 @@ class DetalleVentaActualizar(BaseModel):
             valor,
             "LA CANTIDAD DEBE SER UN NÚMERO ENTERO MAYOR A CERO."
         )
+
+
+# DTO PARA VALIDAR INVENTARIO DE UNA VENTA ANTES DE CONFIRMARLA
+class ValidarInventarioVentaSolicitud(BaseModel):
+
+    productos: list[VentaProductoItem] | None = Field(
+        default=None,
+        min_length=1,
+        description="LISTADO OPCIONAL DE PRODUCTOS Y CANTIDADES A VALIDAR"
+    )
+
+    model_config = ConfigDict(
+        extra="forbid"
+    )

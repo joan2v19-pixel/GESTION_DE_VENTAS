@@ -209,6 +209,62 @@ def CalcularTotalesVentaDominio(venta_id: int) -> dict:
     }
 
 
+# VALIDAR DISPONIBILIDAD DE INVENTARIO PARA UNA VENTA ANTES DE CONFIRMARLA
+def ValidarInventarioVentaDominio(
+    venta_id: int,
+    productos_solicitud: list[dict] | None = None
+) -> dict:
+
+    # VERIFICAR QUE LA VENTA EXISTA
+    venta = ventaRepositorio.ObtenerVentaPorIdRepositorio(venta_id)
+
+    if venta is None:
+        raise LookupError("La venta seleccionada no existe")
+
+    productos_a_validar = (
+        productos_solicitud if productos_solicitud is not None else venta["productos"]
+    )
+
+    if not productos_a_validar:
+        raise ValueError("Debe agregar al menos un producto al detalle de la venta")
+
+    # AGRUPAR CANTIDADES POR PRODUCTO PARA VALIDAR EL TOTAL SOLICITADO
+    cantidades_por_producto: dict[int, int] = {}
+    for item in productos_a_validar:
+        producto_id = item["producto_id"]
+        cantidades_por_producto[producto_id] = (
+            cantidades_por_producto.get(producto_id, 0) + item["cantidad"]
+        )
+
+    consulta_disponibilidad = [
+        {
+            "producto_id": producto_id,
+            "cantidad_solicitada": cantidad_total
+        }
+        for producto_id, cantidad_total in cantidades_por_producto.items()
+    ]
+
+    resultado = inventarioServicio.ValidarDisponibilidadServicio(
+        consulta_disponibilidad
+    )
+
+    productos_formateados = [
+        {
+            "producto_id": item["producto_id"],
+            "cantidad_solicitada": item["cantidad_solicitada"],
+            "existencias_disponibles": item["cantidad_disponible"],
+            "disponible": item["disponible"]
+        }
+        for item in resultado["productos"]
+    ]
+
+    return {
+        "venta_id": venta_id,
+        "disponibilidad_suficiente": resultado["disponibilidad_suficiente"],
+        "productos": productos_formateados
+    }
+
+
 # CONFIRMAR UNA VENTA Y DESCONTAR EXISTENCIAS DEL INVENTARIO DE FORMA CONSISTENTE
 def ConfirmarVentaDominio(venta_id: int) -> dict:
 

@@ -52,3 +52,14 @@ def EliminarDetalleVentaServicio(venta_id: int, producto_id: int) -> dict:
 # SERVICIO PARA CALCULAR SUBTOTALES Y TOTAL DE UNA VENTA
 def CalcularTotalesVentaServicio(venta_id: int) -> dict:
     return ventaDominio.CalcularTotalesVentaDominio(venta_id)
+
+
+# SERVICIO PARA VALIDAR LA DISPONIBILIDAD DE INVENTARIO DE UNA VENTA
+def ValidarInventarioVentaServicio(
+    venta_id: int,
+    productos_solicitud: list[dict] | None = None
+) -> dict:
+    return ventaDominio.ValidarInventarioVentaDominio(
+        venta_id,
+        productos_solicitud
+    )

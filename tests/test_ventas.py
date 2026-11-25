@@ -16,6 +16,7 @@ from microservicios.ventas.api.dtos import (
     ConfirmarVentaSolicitud,
     DetalleVentaActualizar,
     DetalleVentaAgregar,
+    ValidarInventarioVentaSolicitud,
     VentaRegistro
 )
 from microservicios.ventas.api.ventaApi import (
@@ -26,7 +27,8 @@ from microservicios.ventas.api.ventaApi import (
     ConsultarDetalleVentaAPI,
     ConsultarVentasAPI,
     EliminarDetalleVentaAPI,
-    RegistrarVentaAPI
+    RegistrarVentaAPI,
+    ValidarInventarioVentaAPI
 )
 from microservicios.ventas.repositorio import ventaRepositorio
 
@@ -669,6 +671,186 @@ class TestTotalesVenta(unittest.TestCase):
         ruta = "/api/v1/ventas/{venta_id}/totales"
         self.assertIn(ruta, esquema["paths"])
         self.assertIn("get", esquema["paths"][ruta])
+
+
+# PRUEBAS UNITARIAS PARA VALIDAR INVENTARIO ANTES DE CONFIRMAR UNA VENTA
+class TestValidarInventarioVenta(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        ventaRepositorio.ventas.clear()
+        inventarioRepositorio.inventarios.clear()
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+        clienteRepositorio.clientes.clear()
+
+        clienteRepositorio.RegistrarClienteRepositorio({
+            "identificacion": "1234567890",
+            "nombre": "Juan Perez",
+            "telefono": "3001234567",
+            "correo": "juan@ejemplo.com"
+        })
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Arroz",
+            "codigo": "PROD-001",
+            "precio": 3500.0,
+            "categoria_id": 1
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Aceite",
+            "codigo": "PROD-002",
+            "precio": 6500.0,
+            "categoria_id": 1
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Azúcar",
+            "codigo": "PROD-003",
+            "precio": 2500.0,
+            "categoria_id": 1
+        })
+
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+        RegistrarExistenciasInicialesAPI(
+            ExistenciasInicialesRegistro(producto_id=1, cantidad_inicial=10),
+            self.usuario_autenticado
+        )
+        RegistrarExistenciasInicialesAPI(
+            ExistenciasInicialesRegistro(producto_id=2, cantidad_inicial=8),
+            self.usuario_autenticado
+        )
+        RegistrarExistenciasInicialesAPI(
+            ExistenciasInicialesRegistro(producto_id=3, cantidad_inicial=0),
+            self.usuario_autenticado
+        )
+
+        RegistrarVentaAPI(VentaRegistro(cliente_id=1), self.usuario_autenticado)
+
+    # CASO 1: TODOS LOS PRODUCTOS TIENEN EXISTENCIAS SUFICIENTES
+    def test_validar_inventario_existencias_suficientes(self):
+        datos = ValidarInventarioVentaSolicitud(
+            productos=[
+                {"producto_id": 1, "cantidad": 2},
+                {"producto_id": 2, "cantidad": 3}
+            ]
+        )
+
+        respuesta = ValidarInventarioVentaAPI(1, datos, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(
+            respuesta["message"],
+            "Validación de inventario realizada correctamente"
+        )
+        self.assertTrue(respuesta["data"]["disponibilidad_suficiente"])
+        self.assertEqual(respuesta["data"]["productos"][0]["existencias_disponibles"], 10)
+        self.assertTrue(respuesta["data"]["productos"][0]["disponible"])
+
+    # CASO 2: UN PRODUCTO TIENE EXISTENCIAS INSUFICIENTES
+    def test_validar_inventario_existencias_insuficientes(self):
+        datos = ValidarInventarioVentaSolicitud(
+            productos=[
+                {"producto_id": 1, "cantidad": 15}
+            ]
+        )
+
+        respuesta = ValidarInventarioVentaAPI(1, datos, self.usuario_autenticado)
+
+        self.assertFalse(respuesta["success"])
+        self.assertEqual(
+            respuesta["message"],
+            "No hay existencias suficientes para todos los productos"
+        )
+        self.assertFalse(respuesta["data"]["disponibilidad_suficiente"])
+        self.assertEqual(respuesta["data"]["productos"][0]["cantidad_solicitada"], 15)
+        self.assertEqual(respuesta["data"]["productos"][0]["existencias_disponibles"], 10)
+        self.assertFalse(respuesta["data"]["productos"][0]["disponible"])
+
+    # CASO 3: PRODUCTO SIN EXISTENCIAS (CERO UNIDADES DISPONIBLES)
+    def test_validar_inventario_producto_sin_existencias(self):
+        datos = ValidarInventarioVentaSolicitud(
+            productos=[
+                {"producto_id": 3, "cantidad": 1}
+            ]
+        )
+
+        respuesta = ValidarInventarioVentaAPI(1, datos, self.usuario_autenticado)
+
+        self.assertFalse(respuesta["success"])
+        self.assertFalse(respuesta["data"]["disponibilidad_suficiente"])
+        self.assertEqual(respuesta["data"]["productos"][0]["existencias_disponibles"], 0)
+        self.assertFalse(respuesta["data"]["productos"][0]["disponible"])
+
+    # CASO 4: MODIFICAR LA CANTIDAD DE UN PRODUCTO Y VOLVER A VALIDAR
+    def test_validar_inventario_despues_de_modificar_cantidad(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=15),
+            1,
+            self.usuario_autenticado
+        )
+
+        primera = ValidarInventarioVentaAPI(1, None, self.usuario_autenticado)
+        self.assertFalse(primera["data"]["disponibilidad_suficiente"])
+
+        ActualizarDetalleVentaAPI(
+            DetalleVentaActualizar(cantidad=5),
+            1,
+            1,
+            self.usuario_autenticado
+        )
+
+        segunda = ValidarInventarioVentaAPI(1, None, self.usuario_autenticado)
+        self.assertTrue(segunda["success"])
+        self.assertTrue(segunda["data"]["disponibilidad_suficiente"])
+
+    # CASO 5: LAS EXISTENCIAS CAMBIAN ANTES DE CONFIRMAR LA VENTA
+    def test_existencias_cambian_antes_de_confirmar(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=6),
+            1,
+            self.usuario_autenticado
+        )
+
+        primera = ValidarInventarioVentaAPI(1, None, self.usuario_autenticado)
+        self.assertTrue(primera["data"]["disponibilidad_suficiente"])
+
+        # SIMULAR DISMINUCIÓN DE STOCK ANTES DE CONFIRMAR
+        inventarioRepositorio.ActualizarCantidadInventarioRepositorio(1, 3)
+
+        segunda = ValidarInventarioVentaAPI(1, None, self.usuario_autenticado)
+        self.assertFalse(segunda["success"])
+        self.assertFalse(segunda["data"]["disponibilidad_suficiente"])
+        self.assertEqual(segunda["data"]["productos"][0]["existencias_disponibles"], 3)
+
+    # CASO 6: PRODUCTO INEXISTENTE EN EL DETALLE
+    def test_validar_inventario_producto_inexistente(self):
+        datos = ValidarInventarioVentaSolicitud(
+            productos=[
+                {"producto_id": 999, "cantidad": 2}
+            ]
+        )
+
+        respuesta = ValidarInventarioVentaAPI(1, datos, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "El producto con ID 999 no existe")
+
+    # VERIFICAR QUE EL ENDPOINT DE VALIDAR INVENTARIO ESTÉ EN OPENAPI / SWAGGER
+    def test_documentacion_openapi_validar_inventario_venta(self):
+        esquema = app.openapi()
+        ruta = "/api/v1/ventas/{venta_id}/validar-inventario"
+        self.assertIn(ruta, esquema["paths"])
+        self.assertIn("post", esquema["paths"][ruta])
 
 
 if __name__ == "__main__":

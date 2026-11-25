@@ -6,6 +6,7 @@ from microservicios.ventas.api.dtos import (
     ConfirmarVentaSolicitud,
     DetalleVentaActualizar,
     DetalleVentaAgregar,
+    ValidarInventarioVentaSolicitud,
     VentaRegistro
 )
 from microservicios.ventas.servicio import ventaServicio
@@ -676,6 +677,163 @@ def CalcularTotalesVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible calcular los totales de la venta",
+                "success": False
+            }
+        )
+
+
+# VALIDAR LA DISPONIBILIDAD DE INVENTARIO ANTES DE CONFIRMAR UNA VENTA
+@router.post(
+    "/{venta_id}/validar-inventario",
+    status_code=status.HTTP_200_OK,
+    summary="Validar disponibilidad de inventario de una venta",
+    description=(
+        "Consulta las existencias actuales de cada producto incluido en la venta "
+        "(o en la lista enviada) y compara las cantidades solicitadas contra el inventario "
+        "disponible antes de permitir la confirmación."
+    ),
+    responses={
+        200: {
+            "description": "Resultado de la validación de inventario de la venta",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "existencias_suficientes": {
+                            "summary": "Todos los productos disponibles",
+                            "value": {
+                                "message": "Validación de inventario realizada correctamente",
+                                "data": {
+                                    "venta_id": 1,
+                                    "disponibilidad_suficiente": True,
+                                    "productos": [
+                                        {
+                                            "producto_id": 15,
+                                            "cantidad_solicitada": 2,
+                                            "existencias_disponibles": 10,
+                                            "disponible": True
+                                        },
+                                        {
+                                            "producto_id": 18,
+                                            "cantidad_solicitada": 3,
+                                            "existencias_disponibles": 8,
+                                            "disponible": True
+                                        }
+                                    ]
+                                },
+                                "success": True
+                            }
+                        },
+                        "existencias_insuficientes": {
+                            "summary": "Uno o más productos sin stock suficiente",
+                            "value": {
+                                "message": "No hay existencias suficientes para todos los productos",
+                                "data": {
+                                    "venta_id": 1,
+                                    "disponibilidad_suficiente": False,
+                                    "productos": [
+                                        {
+                                            "producto_id": 15,
+                                            "cantidad_solicitada": 5,
+                                            "existencias_disponibles": 2,
+                                            "disponible": False
+                                        }
+                                    ]
+                                },
+                                "success": False
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Venta o producto no encontrado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El producto con ID 999 no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "La venta no tiene productos en su detalle",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Debe agregar al menos un producto al detalle de la venta",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al validar el inventario",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible validar la disponibilidad del inventario",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def ValidarInventarioVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    datos: ValidarInventarioVentaSolicitud | None = Body(default=None),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        productos_solicitud = (
+            datos.model_dump()["productos"]
+            if datos is not None and datos.productos is not None
+            else None
+        )
+
+        resultado = ventaServicio.ValidarInventarioVentaServicio(
+            venta_id,
+            productos_solicitud
+        )
+
+        if not resultado["disponibilidad_suficiente"]:
+            return {
+                "message": "No hay existencias suficientes para todos los productos",
+                "data": resultado,
+                "success": False
+            }
+
+        return {
+            "message": "Validación de inventario realizada correctamente",
+            "data": resultado,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible validar la disponibilidad del inventario",
                 "success": False
             }
         )
