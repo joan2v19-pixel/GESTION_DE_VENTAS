@@ -31,10 +31,3 @@ def CerrarSesionServicio(token: str):
 
     return usuarioDominio.CerrarSesionDominio(token)
 
-
-def IniciarSesionServicio(nombre_usuario: str, contrasena: str):
-
-    return usuarioDominio.IniciarSesionDominio(
-        nombre_usuario,
-        contrasena
-    )

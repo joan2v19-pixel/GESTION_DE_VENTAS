@@ -1,31 +1,49 @@
+
 from fastapi import FastAPI
+
 from microservicios.usuarios.api.usuarioApi import router as usuarios_router
 from microservicios.clientes.api.clienteApi import router as clientes_router
 from microservicios.proveedores.api.proveedorApi import router as proveedorRouter
 from microservicios.categorias.api.categoriaApi import router as categoriaRouter
 
+# IMPORTAR LA FUNCIÓN PARA INICIALIZAR EL SUPERADMINISTRADOR
+from microservicios.usuarios.dominio.usuarioDominio import InicializarSuperadministradorDominio
 
+# CREAR LA APLICACIÓN FASTAPI
 app = FastAPI(
     title="Sistema de Gestión de Ventas e Inventario",
     description="Web Services para la gestión de usuarios",
     version="1.0.0"
 )
 
-# Registrar microservicio de usuarios
+
+# INICIALIZAR EL SUPERADMINISTRADOR AL INICIAR LA APLICACIÓN
+@app.on_event("startup")
+def InicializarSistema():
+
+    InicializarSuperadministradorDominio()
+
+
+# REGISTRAR MICROSERVICIO DE USUARIOS
 app.include_router(usuarios_router)
 
 
-# Registrar microservicio de clientes
+# REGISTRAR MICROSERVICIO DE CLIENTES
 app.include_router(clientes_router)
 
-# Registrar microservicio de proveedores
+
+# REGISTRAR MICROSERVICIO DE PROVEEDORES
 app.include_router(proveedorRouter)
 
-# Registrar microservicio de categorias
+
+# REGISTRAR MICROSERVICIO DE CATEGORÍAS
 app.include_router(categoriaRouter)
 
+
+# DEFINIR RUTA PRINCIPAL
 @app.get("/")
 def inicio():
+
     return {
         "mensaje": "Sistema de Gestión de Ventas e Inventario",
         "estado": "Funcionando correctamente"

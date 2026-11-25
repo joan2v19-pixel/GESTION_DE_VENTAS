@@ -1,4 +1,3 @@
-
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -8,7 +7,6 @@ from fastapi import (
     Depends
 )
 
-from pydantic import BaseModel, Field, ConfigDict
 from typing import Annotated
 
 from microservicios.usuarios.servicio import usuarioServicio
@@ -19,19 +17,22 @@ from microservicios.usuarios.api.dtos import (
 )
 
 
+# CONFIGURAR EL ROUTER DEL MICROSERVICIO DE USUARIOS
 router = APIRouter(
     prefix="/api/Usuarios",
     tags=["Gestión de usuarios"]
 )
 
-# Validar que exista una sesión activa
+
+# VALIDAR QUE EXISTA UNA SESIÓN ACTIVA
 def ObtenerUsuarioAutenticado(
-   sesion: Annotated[
+    sesion: Annotated[
         str | None,
         Cookie(alias="sesion", include_in_schema=False)
     ] = None
 ):
 
+    # VERIFICAR QUE SE HAYA ENVIADO LA COOKIE DE SESIÓN
     if not sesion:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -39,6 +40,7 @@ def ObtenerUsuarioAutenticado(
         )
 
     try:
+        # VALIDAR LA SESIÓN Y OBTENER LOS DATOS DEL USUARIO
         return usuarioServicio.ValidarSesionServicio(sesion)
 
     except PermissionError:
@@ -54,17 +56,38 @@ def ObtenerUsuarioAutenticado(
         )
 
 
-# Endpoint para registrar usuarios
+# VALIDAR QUE EL USUARIO AUTENTICADO SEA SUPERADMINISTRADOR
+def ObtenerSuperadministrador(
+    usuario: dict = Depends(ObtenerUsuarioAutenticado)
+):
+
+    # COMPROBAR SI EL USUARIO TIENE PERMISOS DE SUPERADMINISTRADOR
+    if not usuario.get("esSuperadministrador", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="NO TIENE PERMISOS PARA REALIZAR ESTA OPERACIÓN."
+        )
+
+    # DEVOLVER LOS DATOS DEL SUPERADMINISTRADOR AUTENTICADO
+    return usuario
+
+
+# ENDPOINT PARA REGISTRAR USUARIOS
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def RegistrarUsuarioAPI(usuario: UsuarioRegistro):
+def RegistrarUsuarioAPI(
+    usuario: UsuarioRegistro,
+    superadministrador: dict = Depends(ObtenerSuperadministrador)
+):
 
     try:
+        # REGISTRAR EL NUEVO USUARIO
         nuevo_usuario = usuarioServicio.RegistrarUsuarioServicio(
             usuario.model_dump()
         )
 
+        # DEVOLVER LA INFORMACIÓN DEL USUARIO REGISTRADO
         return {
-            "mensaje": "USUARIO REGISTRADO CORRECTAMENTE.",
+            "message": "USUARIO REGISTRADO CORRECTAMENTE.",
             "data": {
                 "id": nuevo_usuario["id"],
                 "nombre": nuevo_usuario["nombre"],
@@ -81,22 +104,24 @@ def RegistrarUsuarioAPI(usuario: UsuarioRegistro):
         )
 
 
-# Endpoint para actualizar usuarios
+# ENDPOINT PARA ACTUALIZAR USUARIOS
 @router.put("/{id_usuario}")
 def ActualizarUsuarioAPI(
     id_usuario: int,
     datos: UsuarioActualizar,
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    superadministrador: dict = Depends(ObtenerSuperadministrador)
 ):
 
     try:
+        # ACTUALIZAR LA INFORMACIÓN DEL USUARIO
         usuario_actualizado = usuarioServicio.ActualizarUsuarioServicio(
             id_usuario,
             datos.model_dump()
         )
 
+        # DEVOLVER LA INFORMACIÓN ACTUALIZADA
         return {
-            "mensaje": "LA INFORMACIÓN DEL USUARIO SE ACTUALIZÓ CORRECTAMENTE.",
+            "message": "LA INFORMACIÓN DEL USUARIO SE ACTUALIZÓ CORRECTAMENTE.",
             "usuario": {
                 "id": usuario_actualizado["id"],
                 "nombre": usuario_actualizado["nombre"],
@@ -119,13 +144,14 @@ def ActualizarUsuarioAPI(
         )
 
 
-# Endpoint para consultar todos los usuarios
+# ENDPOINT PARA CONSULTAR TODOS LOS USUARIOS
 @router.get("/")
 def ConsultarUsuariosAPI(
-    usuario_autenticado: dict = Depends(ObtenerUsuarioAutenticado)
+    superadministrador: dict = Depends(ObtenerSuperadministrador)
 ):
 
     try:
+        # CONSULTAR LOS USUARIOS REGISTRADOS
         usuarios = usuarioServicio.ConsultarUsuariosServicio()
 
         return usuarios
@@ -137,7 +163,7 @@ def ConsultarUsuariosAPI(
         )
 
 
-# Endpoint para iniciar sesión
+# ENDPOINT PARA INICIAR SESIÓN
 @router.post("/login")
 def IniciarSesionAPI(
     datos: UsuarioLogin,
@@ -145,12 +171,13 @@ def IniciarSesionAPI(
 ):
 
     try:
+        # VALIDAR LAS CREDENCIALES DEL USUARIO
         resultado = usuarioServicio.IniciarSesionServicio(
             datos.nombreUsuario,
             datos.contrasena
         )
 
-        # Crear cookie con el identificador de sesión
+        # CREAR COOKIE CON EL IDENTIFICADOR DE SESIÓN
         response.set_cookie(
             key="sesion",
             value=resultado["token"],
@@ -162,7 +189,7 @@ def IniciarSesionAPI(
         )
 
         return {
-            "mensaje": "INICIO DE SESIÓN EXITOSO.",
+            "message": "INICIO DE SESIÓN EXITOSO.",
             "success": True,
             "data": resultado["usuario"]
         }
@@ -186,7 +213,7 @@ def IniciarSesionAPI(
         )
 
 
-# Endpoint para consultar el usuario autenticado
+# ENDPOINT PARA CONSULTAR EL USUARIO AUTENTICADO
 @router.get("/sesion")
 def ConsultarSesionAPI(
     usuario: dict = Depends(ObtenerUsuarioAutenticado)
@@ -199,16 +226,18 @@ def ConsultarSesionAPI(
     }
 
 
-# Endpoint para cerrar sesión
+# ENDPOINT PARA CERRAR SESIÓN
 @router.post("/logout")
 def CerrarSesionAPI(
     response: Response,
     sesion: Annotated[str | None, Cookie(alias="sesion")] = None
 ):
 
+    # ELIMINAR LA SESIÓN SI EXISTE
     if sesion:
         usuarioServicio.CerrarSesionServicio(sesion)
 
+    # ELIMINAR LA COOKIE DEL NAVEGADOR
     response.delete_cookie(
         key="sesion",
         path="/",
@@ -218,6 +247,6 @@ def CerrarSesionAPI(
     )
 
     return {
-        "mensaje": "SESIÓN CERRADA CORRECTAMENTE.",
+        "message": "SESIÓN CERRADA CORRECTAMENTE.",
         "success": True
     }
