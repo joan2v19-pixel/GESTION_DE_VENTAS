@@ -51,18 +51,32 @@ class VentaProductoItem(BaseModel):
         )
 
 
-# DTO PARA REGISTRAR UNA VENTA EN ESTADO PENDIENTE
+# DTO PARA REGISTRAR UNA VENTA EN ESTADO PENDIENTE ASOCIADA A UN CLIENTE
 class VentaRegistro(BaseModel):
 
-    productos: list[VentaProductoItem] = Field(
+    cliente_id: int = Field(
         ...,
-        min_length=1,
-        description="LISTADO DE PRODUCTOS Y CANTIDADES DE LA VENTA"
+        gt=0,
+        description="IDENTIFICADOR DEL CLIENTE ASOCIADO A LA VENTA",
+        examples=[1]
+    )
+    productos: list[VentaProductoItem] = Field(
+        default_factory=list,
+        description="LISTADO OPCIONAL DE PRODUCTOS Y CANTIDADES INICIALES DE LA VENTA"
     )
 
     model_config = ConfigDict(
         extra="forbid"
     )
+
+    # VALIDAR QUE EL IDENTIFICADOR DEL CLIENTE SEA UN ENTERO POSITIVO VÁLIDO
+    @field_validator("cliente_id", mode="before")
+    @classmethod
+    def ValidarClienteId(cls, valor):
+        return _ValidarEnteroPositivo(
+            valor,
+            "EL CLIENTE ES OBLIGATORIO Y SU IDENTIFICADOR DEBE SER UN NÚMERO ENTERO POSITIVO."
+        )
 
 
 # DTO PARA CONFIRMAR UNA VENTA REGISTRADA

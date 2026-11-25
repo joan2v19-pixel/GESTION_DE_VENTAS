@@ -1,20 +1,37 @@
+from microservicios.clientes.servicio import clienteServicio
 from microservicios.inventario.repositorio import inventarioRepositorio
 from microservicios.inventario.servicio import inventarioServicio
 from microservicios.productos.servicio import productoServicio
 from microservicios.ventas.repositorio import ventaRepositorio
 
 
-# REGISTRAR UNA NUEVA VENTA EN ESTADO PENDIENTE VALIDANDO PRODUCTOS
+# REGISTRAR UNA NUEVA VENTA EN ESTADO PENDIENTE ASOCIADA A UN CLIENTE
 def RegistrarVentaDominio(datos_venta: dict) -> dict:
 
-    for item in datos_venta["productos"]:
+    # VERIFICAR QUE EL CLIENTE SELECCIONADO EXISTA EN EL SISTEMA
+    cliente_existente = clienteServicio.ObtenerClientePorIdServicio(
+        datos_venta["cliente_id"]
+    )
+
+    if cliente_existente is None:
+        raise LookupError("El cliente seleccionado no existe")
+
+    # VERIFICAR QUE LOS PRODUCTOS INICIALES EXISTAN SI SE PROPORCIONAN
+    for item in datos_venta.get("productos", []):
         producto_existente = productoServicio.ObtenerProductoPorIdServicio(
             item["producto_id"]
         )
         if producto_existente is None:
             raise LookupError(f"El producto con ID {item['producto_id']} no existe")
 
-    return ventaRepositorio.RegistrarVentaRepositorio(datos_venta)
+    venta_registrada = ventaRepositorio.RegistrarVentaRepositorio(datos_venta)
+
+    return {
+        "venta_id": venta_registrada["id"],
+        "cliente_id": venta_registrada["cliente_id"],
+        "estado": venta_registrada["estado"],
+        "productos": venta_registrada["productos"]
+    }
 
 
 # CONSULTAR TODAS LAS VENTAS REGISTRADAS

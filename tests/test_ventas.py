@@ -6,13 +6,18 @@ from pydantic import ValidationError
 
 from main import app
 from microservicios.categorias.repositorio import categoriaRepositorio
+from microservicios.clientes.repositorio import clienteRepositorio
 from microservicios.inventario.api.dtos import ExistenciasInicialesRegistro
 from microservicios.inventario.api.inventarioApi import RegistrarExistenciasInicialesAPI
 from microservicios.inventario.repositorio import inventarioRepositorio
 from microservicios.inventario.servicio import inventarioServicio
 from microservicios.productos.repositorio import productoRepositorio
 from microservicios.ventas.api.dtos import ConfirmarVentaSolicitud, VentaRegistro
-from microservicios.ventas.api.ventaApi import ConfirmarVentaAPI, RegistrarVentaAPI
+from microservicios.ventas.api.ventaApi import (
+    ConfirmarVentaAPI,
+    ConsultarVentasAPI,
+    RegistrarVentaAPI
+)
 from microservicios.ventas.repositorio import ventaRepositorio
 
 
@@ -25,8 +30,15 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
         inventarioRepositorio.inventarios.clear()
         productoRepositorio.productos.clear()
         categoriaRepositorio.categorias.clear()
+        clienteRepositorio.clientes.clear()
 
-        # REGISTRAR CATEGORÍA, PRODUCTOS Y EXISTENCIAS INICIALES
+        # REGISTRAR CLIENTE, CATEGORÍA, PRODUCTOS Y EXISTENCIAS INICIALES
+        clienteRepositorio.RegistrarClienteRepositorio({
+            "identificacion": "1234567890",
+            "nombre": "Juan Perez",
+            "telefono": "3001234567",
+            "correo": "juan@ejemplo.com"
+        })
         categoriaRepositorio.RegistrarCategoriaRepositorio({
             "nombre": "Granos",
             "descripcion": "Productos de granos y cereales"
@@ -62,10 +74,13 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
     # CASO 1: DESCUENTO EXITOSO DE EXISTENCIAS AL CONFIRMAR UNA VENTA
     def test_descuento_exitoso_al_confirmar_venta(self):
         RegistrarVentaAPI(
-            VentaRegistro(productos=[
-                {"producto_id": 1, "cantidad": 5},
-                {"producto_id": 2, "cantidad": 3}
-            ]),
+            VentaRegistro(
+                cliente_id=1,
+                productos=[
+                    {"producto_id": 1, "cantidad": 5},
+                    {"producto_id": 2, "cantidad": 3}
+                ]
+            ),
             self.usuario_autenticado
         )
 
@@ -100,10 +115,13 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
     # CASO 2: EXISTENCIAS INSUFICIENTES PARA CONFIRMAR LA VENTA
     def test_existencias_insuficientes_impide_confirmar(self):
         RegistrarVentaAPI(
-            VentaRegistro(productos=[
-                {"producto_id": 1, "cantidad": 5},
-                {"producto_id": 2, "cantidad": 50}
-            ]),
+            VentaRegistro(
+                cliente_id=1,
+                productos=[
+                    {"producto_id": 1, "cantidad": 5},
+                    {"producto_id": 2, "cantidad": 50}
+                ]
+            ),
             self.usuario_autenticado
         )
 
@@ -132,7 +150,7 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
     # CASO 3: INTENTO DE DESCONTAR EXISTENCIAS DE UNA VENTA NO CONFIRMADA
     def test_impedir_descuento_de_venta_no_confirmada(self):
         venta = RegistrarVentaAPI(
-            VentaRegistro(productos=[{"producto_id": 1, "cantidad": 5}]),
+            VentaRegistro(cliente_id=1, productos=[{"producto_id": 1, "cantidad": 5}]),
             self.usuario_autenticado
         )["data"]
 
@@ -151,7 +169,7 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
     # CASO 4: EVITAR EL DESCUENTO DUPLICADO EN UNA VENTA YA CONFIRMADA
     def test_evitar_descuento_duplicado(self):
         RegistrarVentaAPI(
-            VentaRegistro(productos=[{"producto_id": 1, "cantidad": 5}]),
+            VentaRegistro(cliente_id=1, productos=[{"producto_id": 1, "cantidad": 5}]),
             self.usuario_autenticado
         )
 
@@ -176,10 +194,13 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
     )
     def test_error_actualizacion_inventario_mantiene_consistencia(self, mock_actualizar):
         RegistrarVentaAPI(
-            VentaRegistro(productos=[
-                {"producto_id": 1, "cantidad": 5},
-                {"producto_id": 2, "cantidad": 3}
-            ]),
+            VentaRegistro(
+                cliente_id=1,
+                productos=[
+                    {"producto_id": 1, "cantidad": 5},
+                    {"producto_id": 2, "cantidad": 3}
+                ]
+            ),
             self.usuario_autenticado
         )
 
@@ -213,6 +234,93 @@ class TestConfirmacionVentasInventario(unittest.TestCase):
         self.assertIn("/api/v1/ventas/", esquema["paths"])
         self.assertIn("/api/v1/ventas/{venta_id}/confirmar", esquema["paths"])
         self.assertIn("post", esquema["paths"]["/api/v1/ventas/{venta_id}/confirmar"])
+
+
+# PRUEBAS UNITARIAS PARA REGISTRAR UNA VENTA SELECCIONANDO UN CLIENTE
+class TestRegistroVentaCliente(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        ventaRepositorio.ventas.clear()
+        clienteRepositorio.clientes.clear()
+
+        clienteRepositorio.RegistrarClienteRepositorio({
+            "identificacion": "1234567890",
+            "nombre": "Juan Perez",
+            "telefono": "3001234567",
+            "correo": "juan@ejemplo.com"
+        })
+
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+    # CASO 1: REGISTRO DE UNA VENTA CON UN CLIENTE EXISTENTE
+    def test_registro_venta_cliente_existente(self):
+        datos = VentaRegistro(cliente_id=1)
+
+        respuesta = RegistrarVentaAPI(datos, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Venta iniciada correctamente")
+        self.assertEqual(respuesta["data"]["venta_id"], 1)
+        self.assertEqual(respuesta["data"]["cliente_id"], 1)
+        self.assertEqual(respuesta["data"]["estado"], "pendiente")
+
+    # CASO 2: INTENTO DE REGISTRAR UNA VENTA CON UN CLIENTE INEXISTENTE
+    def test_registro_venta_cliente_inexistente(self):
+        datos = VentaRegistro(cliente_id=999)
+
+        respuesta = RegistrarVentaAPI(datos, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "El cliente seleccionado no existe")
+        self.assertEqual(len(ventaRepositorio.ventas), 0)
+
+    # CASO 3: REGISTRO DE UNA VENTA SIN SELECCIONAR CLIENTE O CON CLIENTE INVÁLIDO
+    def test_registro_venta_sin_cliente_o_invalido(self):
+        with self.assertRaises(ValidationError) as contexto:
+            VentaRegistro()
+
+        campos = [error["loc"][0] for error in contexto.exception.errors()]
+        self.assertIn("cliente_id", campos)
+
+        for valor_invalido in [0, -1, 1.5, "string", True, None]:
+            with self.assertRaises(ValidationError):
+                VentaRegistro(cliente_id=valor_invalido)
+
+        self.assertEqual(len(ventaRepositorio.ventas), 0)
+
+    # CASO 4: VERIFICACIÓN DE LA ASOCIACIÓN ENTRE VENTA Y CLIENTE
+    def test_verificacion_asociacion_venta_cliente(self):
+        RegistrarVentaAPI(VentaRegistro(cliente_id=1), self.usuario_autenticado)
+
+        consulta = ConsultarVentasAPI(self.usuario_autenticado)
+        self.assertTrue(consulta["success"])
+        self.assertEqual(len(consulta["data"]), 1)
+        self.assertEqual(consulta["data"][0]["id"], 1)
+        self.assertEqual(consulta["data"][0]["cliente_id"], 1)
+        self.assertEqual(consulta["data"][0]["estado"], "pendiente")
+
+    # CASO 5: ERROR DURANTE EL REGISTRO DE LA VENTA
+    @patch(
+        "microservicios.ventas.repositorio.ventaRepositorio.RegistrarVentaRepositorio",
+        side_effect=RuntimeError("Error simulado de base de datos")
+    )
+    def test_error_durante_registro_venta(self, mock_guardar):
+        datos = VentaRegistro(cliente_id=1)
+
+        respuesta = RegistrarVentaAPI(datos, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "No fue posible registrar la venta")
+        self.assertEqual(len(ventaRepositorio.ventas), 0)
 
 
 if __name__ == "__main__":

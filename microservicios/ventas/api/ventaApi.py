@@ -13,12 +13,57 @@ router = APIRouter(
 )
 
 
-# REGISTRAR UNA NUEVA VENTA EN ESTADO PENDIENTE
+# REGISTRAR UNA NUEVA VENTA ASOCIADA A UN CLIENTE EN ESTADO PENDIENTE
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
-    summary="Registrar una venta en estado pendiente",
-    description="Registra una venta con sus productos y cantidades en estado pendiente antes de confirmarla."
+    summary="Registrar una venta asociada a un cliente",
+    description=(
+        "Inicia el registro de una nueva venta en estado pendiente asociándola a un "
+        "cliente previamente registrado en el sistema. Permite continuar posteriormente "
+        "con el registro de productos y cantidades."
+    ),
+    responses={
+        201: {
+            "description": "Venta iniciada correctamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Venta iniciada correctamente",
+                        "data": {
+                            "venta_id": 1,
+                            "cliente_id": 1,
+                            "estado": "pendiente",
+                            "productos": []
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "El cliente seleccionado no existe",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El cliente seleccionado no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al registrar la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible registrar la venta",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
 )
 def RegistrarVentaAPI(
     datos: VentaRegistro,
@@ -27,7 +72,7 @@ def RegistrarVentaAPI(
     try:
         venta = ventaServicio.RegistrarVentaServicio(datos.model_dump())
         return {
-            "message": "Venta registrada correctamente",
+            "message": "Venta iniciada correctamente",
             "data": venta,
             "success": True
         }

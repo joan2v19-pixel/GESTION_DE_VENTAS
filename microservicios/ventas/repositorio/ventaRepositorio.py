@@ -7,8 +7,9 @@ def RegistrarVentaRepositorio(datos_venta: dict) -> dict:
 
     nueva_venta = {
         "id": len(ventas) + 1,
+        "cliente_id": datos_venta["cliente_id"],
         "estado": "pendiente",
-        "productos": datos_venta["productos"]
+        "productos": datos_venta.get("productos", [])
     }
 
     ventas.append(nueva_venta)
