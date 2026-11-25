@@ -7,7 +7,10 @@ from pydantic import ValidationError
 from main import app
 from microservicios.categorias.repositorio import categoriaRepositorio
 from microservicios.inventario.api.dtos import ExistenciasInicialesRegistro
-from microservicios.inventario.api.inventarioApi import RegistrarExistenciasInicialesAPI
+from microservicios.inventario.api.inventarioApi import (
+    ConsultarExistenciasProductoAPI,
+    RegistrarExistenciasInicialesAPI
+)
 from microservicios.inventario.repositorio import inventarioRepositorio
 from microservicios.productos.repositorio import productoRepositorio
 
@@ -130,6 +133,100 @@ class TestExistenciasIniciales(unittest.TestCase):
         esquema = app.openapi()
         self.assertIn("/api/v1/inventario/existencias-iniciales", esquema["paths"])
         self.assertIn("post", esquema["paths"]["/api/v1/inventario/existencias-iniciales"])
+
+
+# PRUEBAS UNITARIAS PARA LA CONSULTA DE EXISTENCIAS DISPONIBLES
+class TestConsultaExistencias(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        inventarioRepositorio.inventarios.clear()
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+
+        # REGISTRAR CATEGORÍA Y PRODUCTO BASE PARA LAS PRUEBAS
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Arroz",
+            "codigo": "PROD-001",
+            "precio": 3500.0,
+            "categoria_id": 1
+        })
+
+        # SIMULAR USUARIO SUPERADMINISTRADOR AUTENTICADO
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+    # CASO 1: CONSULTA EXITOSA DE EXISTENCIAS DISPONIBLES
+    def test_consulta_exitosa_existencias(self):
+        RegistrarExistenciasInicialesAPI(
+            ExistenciasInicialesRegistro(producto_id=1, cantidad_inicial=100),
+            self.usuario_autenticado
+        )
+
+        respuesta = ConsultarExistenciasProductoAPI(1, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Consulta de existencias exitosa")
+        self.assertEqual(respuesta["data"]["producto_id"], 1)
+        self.assertEqual(respuesta["data"]["nombre_producto"], "Arroz")
+        self.assertEqual(respuesta["data"]["codigo_producto"], "PROD-001")
+        self.assertEqual(respuesta["data"]["cantidad_disponible"], 100)
+
+    # CASO 2: CONSULTA DE UN PRODUCTO SIN EXISTENCIAS DISPONIBLES (CANTIDAD IGUAL A CERO)
+    def test_consulta_producto_sin_existencias(self):
+        RegistrarExistenciasInicialesAPI(
+            ExistenciasInicialesRegistro(producto_id=1, cantidad_inicial=0),
+            self.usuario_autenticado
+        )
+
+        respuesta = ConsultarExistenciasProductoAPI(1, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(
+            respuesta["message"],
+            "El producto no tiene existencias disponibles"
+        )
+        self.assertEqual(respuesta["data"]["producto_id"], 1)
+        self.assertEqual(respuesta["data"]["cantidad_disponible"], 0)
+
+    # CASO 3: CONSULTA DE UN PRODUCTO INEXISTENTE
+    def test_consulta_existencias_producto_inexistente(self):
+        respuesta = ConsultarExistenciasProductoAPI(999, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "El producto seleccionado no existe")
+
+    # CASO 4: ERROR DURANTE LA CONSULTA DE EXISTENCIAS
+    @patch(
+        "microservicios.inventario.repositorio.inventarioRepositorio.ObtenerInventarioPorProductoIdRepositorio",
+        side_effect=RuntimeError("Error simulado de base de datos")
+    )
+    def test_error_durante_consulta_existencias(self, mock_consulta):
+        respuesta = ConsultarExistenciasProductoAPI(1, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(
+            cuerpo["message"],
+            "No fue posible consultar las existencias del producto"
+        )
+
+    # VERIFICAR QUE EL ENDPOINT DE CONSULTA DE EXISTENCIAS ESTÉ EN OPENAPI / SWAGGER
+    def test_documentacion_openapi_consulta_existencias(self):
+        esquema = app.openapi()
+        ruta = "/api/v1/inventario/productos/{producto_id}/existencias"
+        self.assertIn(ruta, esquema["paths"])
+        self.assertIn("get", esquema["paths"][ruta])
 
 
 if __name__ == "__main__":
