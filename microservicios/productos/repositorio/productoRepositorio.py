@@ -42,3 +42,21 @@ def ObtenerProductoPorIdRepositorio(id: int) -> dict | None:
             return producto
 
     return None
+
+
+# BUSCAR PRODUCTOS POR NOMBRE O CÓDIGO
+def BuscarProductosRepositorio(
+    nombre: str | None = None,
+    codigo: str | None = None
+) -> list[dict]:
+
+    resultados = []
+
+    for producto in productos:
+        if nombre and nombre.lower() not in producto["nombre"].lower():
+            continue
+        if codigo and codigo.lower() not in producto["codigo"].lower():
+            continue
+        resultados.append(producto)
+
+    return resultados

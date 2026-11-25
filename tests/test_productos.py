@@ -8,6 +8,7 @@ from main import app
 from microservicios.categorias.repositorio import categoriaRepositorio
 from microservicios.productos.api.dtos import ProductoRegistro
 from microservicios.productos.api.productoApi import (
+    BuscarProductosAPI,
     ConsultarProductosAPI,
     ObtenerProductoPorIdAPI,
     RegistrarProductoAPI
@@ -301,6 +302,135 @@ class TestConsultaProductos(unittest.TestCase):
         self.assertEqual(respuesta.status_code, 404)
         self.assertFalse(cuerpo["success"])
         self.assertEqual(cuerpo["message"], "No se encontró el producto solicitado")
+
+
+# PRUEBAS UNITARIAS PARA LA BÚSQUEDA DE PRODUCTOS POR NOMBRE O CÓDIGO
+class TestBusquedaProductos(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+
+        # REGISTRAR CATEGORÍA Y PRODUCTOS BASE PARA LAS PRUEBAS
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+        RegistrarProductoAPI(
+            ProductoRegistro(nombre="Arroz", codigo="PROD-001", precio=3500, categoria_id=1),
+            self.usuario_autenticado
+        )
+        RegistrarProductoAPI(
+            ProductoRegistro(nombre="Frijol", codigo="PROD-002", precio=4200, categoria_id=1),
+            self.usuario_autenticado
+        )
+
+    # CASO 1: BÚSQUEDA EXITOSA POR NOMBRE
+    def test_busqueda_exitosa_por_nombre(self):
+        respuesta = BuscarProductosAPI(
+            nombre="Arroz",
+            codigo=None,
+            usuario_autenticado=self.usuario_autenticado
+        )
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Búsqueda de productos exitosa")
+        self.assertEqual(len(respuesta["data"]), 1)
+        self.assertEqual(respuesta["data"][0]["nombre"], "Arroz")
+        self.assertEqual(respuesta["data"][0]["codigo"], "PROD-001")
+        self.assertEqual(respuesta["data"][0]["categoria"], "Granos")
+
+    # CASO 2: BÚSQUEDA EXITOSA POR CÓDIGO
+    def test_busqueda_exitosa_por_codigo(self):
+        respuesta = BuscarProductosAPI(
+            nombre=None,
+            codigo="PROD-002",
+            usuario_autenticado=self.usuario_autenticado
+        )
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Búsqueda de productos exitosa")
+        self.assertEqual(len(respuesta["data"]), 1)
+        self.assertEqual(respuesta["data"][0]["nombre"], "Frijol")
+        self.assertEqual(respuesta["data"][0]["codigo"], "PROD-002")
+
+    # CASO 3: BÚSQUEDA SIN COINCIDENCIAS
+    def test_busqueda_sin_coincidencias(self):
+        respuesta = BuscarProductosAPI(
+            nombre="Lenteja",
+            codigo=None,
+            usuario_autenticado=self.usuario_autenticado
+        )
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(
+            respuesta["message"],
+            "No se encontraron productos con el criterio de búsqueda ingresado"
+        )
+        self.assertEqual(respuesta["data"], [])
+
+    # CASO 4: CRITERIO DE BÚSQUEDA VACÍO O INVÁLIDO
+    def test_criterio_busqueda_vacio_o_invalido(self):
+        respuesta_vacia = BuscarProductosAPI(
+            nombre="   ",
+            codigo=None,
+            usuario_autenticado=self.usuario_autenticado
+        )
+        cuerpo_vacio = json.loads(respuesta_vacia.body.decode("utf-8"))
+
+        self.assertEqual(respuesta_vacia.status_code, 400)
+        self.assertFalse(cuerpo_vacio["success"])
+        self.assertEqual(
+            cuerpo_vacio["message"],
+            "Debe ingresar al menos un criterio de búsqueda (nombre o código)"
+        )
+
+        # VALIDAR RECHAZO DE 'string' Y NÚMEROS EN EL CRITERIO NOMBRE
+        respuesta_string = BuscarProductosAPI(
+            nombre="string",
+            codigo=None,
+            usuario_autenticado=self.usuario_autenticado
+        )
+        self.assertEqual(respuesta_string.status_code, 400)
+
+        respuesta_numeros = BuscarProductosAPI(
+            nombre="Arroz123",
+            codigo=None,
+            usuario_autenticado=self.usuario_autenticado
+        )
+        self.assertEqual(respuesta_numeros.status_code, 400)
+
+    # CASO 5: ERROR DURANTE LA BÚSQUEDA
+    @patch(
+        "microservicios.productos.repositorio.productoRepositorio.BuscarProductosRepositorio",
+        side_effect=RuntimeError("Error simulado de base de datos")
+    )
+    def test_error_durante_busqueda(self, mock_buscar):
+        respuesta = BuscarProductosAPI(
+            nombre="Arroz",
+            codigo=None,
+            usuario_autenticado=self.usuario_autenticado
+        )
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "No fue posible realizar la búsqueda de productos")
+        self.assertEqual(cuerpo["data"], [])
+
+    # VERIFICAR QUE EL ENDPOINT DE BÚSQUEDA ESTÉ REGISTRADO EN OPENAPI / SWAGGER
+    def test_documentacion_openapi_busqueda(self):
+        esquema = app.openapi()
+        self.assertIn("/api/v1/productos/buscar", esquema["paths"])
+        self.assertIn("get", esquema["paths"]["/api/v1/productos/buscar"])
 
 
 if __name__ == "__main__":

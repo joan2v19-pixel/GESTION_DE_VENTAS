@@ -52,3 +52,12 @@ def ObtenerProductoPorIdDominio(id: int) -> dict | None:
     if producto is None:
         return None
     return _FormatearProductoConCategoria(producto)
+
+
+# BUSCAR PRODUCTOS POR NOMBRE O CÓDIGO
+def BuscarProductosDominio(
+    nombre: str | None = None,
+    codigo: str | None = None
+) -> list[dict]:
+    productos = productoRepositorio.BuscarProductosRepositorio(nombre, codigo)
+    return [_FormatearProductoConCategoria(producto) for producto in productos]

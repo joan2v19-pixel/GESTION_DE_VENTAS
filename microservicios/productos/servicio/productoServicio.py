@@ -14,3 +14,11 @@ def ConsultarProductosServicio() -> list[dict]:
 # SERVICIO PARA CONSULTAR UN PRODUCTO POR ID
 def ObtenerProductoPorIdServicio(id: int) -> dict | None:
     return productoDominio.ObtenerProductoPorIdDominio(id)
+
+
+# SERVICIO PARA BUSCAR PRODUCTOS POR NOMBRE O CÓDIGO
+def BuscarProductosServicio(
+    nombre: str | None = None,
+    codigo: str | None = None
+) -> list[dict]:
+    return productoDominio.BuscarProductosDominio(nombre, codigo)

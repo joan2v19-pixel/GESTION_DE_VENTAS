@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Path, status, Depends
+from fastapi import APIRouter, Path, Query, status, Depends
 from fastapi.responses import JSONResponse
+import re
 
 from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
-from microservicios.productos.api.dtos import ProductoRegistro
+from microservicios.productos.api.dtos import PALABRAS_PROHIBIDAS, ProductoRegistro
 from microservicios.productos.servicio import productoServicio
 
 
@@ -210,6 +211,178 @@ def ConsultarProductosAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible consultar los productos",
+                "data": [],
+                "success": False
+            }
+        )
+
+
+# BUSCAR PRODUCTOS POR NOMBRE O CÓDIGO
+@router.get(
+    "/buscar",
+    status_code=status.HTTP_200_OK,
+    summary="Buscar productos por nombre o código",
+    description=(
+        "Permite localizar productos registrados filtrando por nombre y/o código. "
+        "Requiere ingresar al menos un criterio de búsqueda válido. "
+        "Ejemplos: GET /api/v1/productos/buscar?nombre=Arroz o "
+        "GET /api/v1/productos/buscar?codigo=PROD-001."
+    ),
+    responses={
+        200: {
+            "description": "Búsqueda de productos exitosa o sin coincidencias",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "con_coincidencias": {
+                            "summary": "Productos encontrados",
+                            "value": {
+                                "message": "Búsqueda de productos exitosa",
+                                "data": [
+                                    {
+                                        "id": 1,
+                                        "nombre": "Arroz",
+                                        "codigo": "PROD-001",
+                                        "precio": 3500.0,
+                                        "categoria_id": 1,
+                                        "categoria": "Granos"
+                                    }
+                                ],
+                                "success": True
+                            }
+                        },
+                        "sin_coincidencias": {
+                            "summary": "Sin coincidencias",
+                            "value": {
+                                "message": "No se encontraron productos con el criterio de búsqueda ingresado",
+                                "data": [],
+                                "success": True
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Criterio de búsqueda vacío o inválido",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Debe ingresar al menos un criterio de búsqueda (nombre o código)",
+                        "data": [],
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno durante la búsqueda",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible realizar la búsqueda de productos",
+                        "data": [],
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def BuscarProductosAPI(
+    nombre: str | None = Query(
+        default=None,
+        description="NOMBRE DEL PRODUCTO A BUSCAR (SOLO LETRAS Y ESPACIOS)"
+    ),
+    codigo: str | None = Query(
+        default=None,
+        description="CÓDIGO DEL PRODUCTO A BUSCAR"
+    ),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    # LIMPIAR ESPACIOS DE LOS CRITERIOS INGRESADOS
+    nombre_limpio = nombre.strip() if isinstance(nombre, str) else None
+    codigo_limpio = codigo.strip() if isinstance(codigo, str) else None
+
+    # VALIDAR QUE SE HAYA INGRESADO AL MENOS UN CRITERIO DE BÚSQUEDA
+    if not nombre_limpio and not codigo_limpio:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "Debe ingresar al menos un criterio de búsqueda (nombre o código)",
+                "data": [],
+                "success": False
+            }
+        )
+
+    # VALIDAR FORMATO DEL CRITERIO NOMBRE SI FUE PROPORCIONADO
+    if nombre_limpio:
+        if nombre_limpio.lower() in PALABRAS_PROHIBIDAS:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": f"El criterio nombre no puede contener el valor '{nombre_limpio}'",
+                    "data": [],
+                    "success": False
+                }
+            )
+        if not re.fullmatch(r"[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+", nombre_limpio):
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": "El nombre de búsqueda solo debe contener letras y espacios",
+                    "data": [],
+                    "success": False
+                }
+            )
+
+    # VALIDAR FORMATO DEL CRITERIO CÓDIGO SI FUE PROPORCIONADO
+    if codigo_limpio:
+        if codigo_limpio.lower() in PALABRAS_PROHIBIDAS:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": f"El criterio código no puede contener el valor '{codigo_limpio}'",
+                    "data": [],
+                    "success": False
+                }
+            )
+        if not re.fullmatch(r"[a-zA-Z0-9\-_]+", codigo_limpio) or not any(c.isalnum() for c in codigo_limpio):
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": "El código de búsqueda solo debe contener letras, números, guiones o guiones bajos",
+                    "data": [],
+                    "success": False
+                }
+            )
+
+    try:
+        # EJECUTAR LA BÚSQUEDA EN EL SERVICIO DE PRODUCTOS
+        productos = productoServicio.BuscarProductosServicio(
+            nombre_limpio,
+            codigo_limpio
+        )
+
+        if not productos:
+            return {
+                "message": "No se encontraron productos con el criterio de búsqueda ingresado",
+                "data": [],
+                "success": True
+            }
+
+        return {
+            "message": "Búsqueda de productos exitosa",
+            "data": productos,
+            "success": True
+        }
+
+    except Exception:
+        # RETORNAR ERROR CONTROLADO SI FALLA LA BÚSQUEDA
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible realizar la búsqueda de productos",
                 "data": [],
                 "success": False
             }
