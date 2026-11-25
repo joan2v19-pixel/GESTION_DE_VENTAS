@@ -25,11 +25,30 @@ def RegistrarProductoDominio(datos_producto: dict) -> dict:
     return productoRepositorio.RegistrarProductoRepositorio(datos_producto)
 
 
+# FORMATEAR UN PRODUCTO INCLUYENDO EL NOMBRE DE SU CATEGORÍA ASOCIADA
+def _FormatearProductoConCategoria(producto: dict) -> dict:
+    categoria = categoriaServicio.ObtenerCategoriaPorIdServicio(
+        producto["categoria_id"]
+    )
+    return {
+        "id": producto["id"],
+        "nombre": producto["nombre"],
+        "codigo": producto["codigo"],
+        "precio": producto["precio"],
+        "categoria_id": producto["categoria_id"],
+        "categoria": categoria["nombre"] if categoria is not None else None
+    }
+
+
 # CONSULTAR TODOS LOS PRODUCTOS REGISTRADOS
 def ConsultarProductosDominio() -> list[dict]:
-    return productoRepositorio.ConsultarProductosRepositorio()
+    productos = productoRepositorio.ConsultarProductosRepositorio()
+    return [_FormatearProductoConCategoria(producto) for producto in productos]
 
 
 # CONSULTAR UN PRODUCTO POR SU IDENTIFICADOR
 def ObtenerProductoPorIdDominio(id: int) -> dict | None:
-    return productoRepositorio.ObtenerProductoPorIdRepositorio(id)
+    producto = productoRepositorio.ObtenerProductoPorIdRepositorio(id)
+    if producto is None:
+        return None
+    return _FormatearProductoConCategoria(producto)

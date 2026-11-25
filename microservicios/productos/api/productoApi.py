@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status, Depends
+from fastapi import APIRouter, Path, status, Depends
 from fastapi.responses import JSONResponse
 
 from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
@@ -130,7 +130,59 @@ def RegistrarProductoAPI(
     "/",
     status_code=status.HTTP_200_OK,
     summary="Consultar todos los productos",
-    description="Obtiene el listado completo de productos registrados en el sistema."
+    description=(
+        "Obtiene el listado completo de productos registrados en el sistema con su "
+        "identificador, nombre, código, precio y categoría asociada. Si no existen "
+        "registros, retorna una lista vacía."
+    ),
+    responses={
+        200: {
+            "description": "Consulta de productos exitosa o sin registros",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "con_registros": {
+                            "summary": "Productos encontrados",
+                            "value": {
+                                "message": "Consulta de productos exitosa",
+                                "data": [
+                                    {
+                                        "id": 1,
+                                        "nombre": "Arroz",
+                                        "codigo": "PROD-001",
+                                        "precio": 3500.0,
+                                        "categoria_id": 1,
+                                        "categoria": "Granos"
+                                    }
+                                ],
+                                "success": True
+                            }
+                        },
+                        "sin_registros": {
+                            "summary": "Sin productos registrados",
+                            "value": {
+                                "message": "No existen productos registrados",
+                                "data": [],
+                                "success": True
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar los productos",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible consultar los productos",
+                        "data": [],
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
 )
 def ConsultarProductosAPI(
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
@@ -153,10 +205,12 @@ def ConsultarProductosAPI(
         }
 
     except Exception:
+        # RETORNAR ERROR CONTROLADO SI FALLA LA CONSULTA
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible consultar los productos",
+                "data": [],
                 "success": False
             }
         )
@@ -167,10 +221,56 @@ def ConsultarProductosAPI(
     "/{id}",
     status_code=status.HTTP_200_OK,
     summary="Consultar un producto por ID",
-    description="Obtiene la información de un producto específico a partir de su identificador."
+    description=(
+        "Obtiene la información detallada de un producto específico (id, nombre, "
+        "código, precio y categoría asociada) a partir de su identificador."
+    ),
+    responses={
+        200: {
+            "description": "Consulta de producto exitosa",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Consulta de producto exitosa",
+                        "data": {
+                            "id": 1,
+                            "nombre": "Arroz",
+                            "codigo": "PROD-001",
+                            "precio": 3500.0,
+                            "categoria_id": 1,
+                            "categoria": "Granos"
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Producto no encontrado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No se encontró el producto solicitado",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar el producto",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible consultar el producto",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
 )
 def ObtenerProductoPorIdAPI(
-    id: int,
+    id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DEL PRODUCTO"),
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:

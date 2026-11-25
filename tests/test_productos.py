@@ -9,6 +9,7 @@ from microservicios.categorias.repositorio import categoriaRepositorio
 from microservicios.productos.api.dtos import ProductoRegistro
 from microservicios.productos.api.productoApi import (
     ConsultarProductosAPI,
+    ObtenerProductoPorIdAPI,
     RegistrarProductoAPI
 )
 from microservicios.productos.repositorio import productoRepositorio
@@ -204,6 +205,102 @@ class TestRegistroProductos(unittest.TestCase):
             ProductoRegistro(nombre="Arroz", codigo="PROD-010", precio=3500, categoria_id=True)
         with self.assertRaises(ValidationError):
             ProductoRegistro(nombre="Arroz", codigo="PROD-010", precio=3500, categoria_id="string")
+
+
+# PRUEBAS UNITARIAS PARA LA CONSULTA Y LISTADO DE PRODUCTOS
+class TestConsultaProductos(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+
+        # REGISTRAR CATEGORÍAS BASE PARA LAS PRUEBAS
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Abarrotes",
+            "descripcion": "Productos básicos de despensa"
+        })
+
+        # SIMULAR USUARIO SUPERADMINISTRADOR AUTENTICADO
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+    # CASO 1: CONSULTA EXITOSA DE PRODUCTOS CON NOMBRE DE CATEGORÍA
+    def test_consulta_exitosa_productos(self):
+        RegistrarProductoAPI(
+            ProductoRegistro(nombre="Arroz", codigo="PROD-001", precio=3500, categoria_id=1),
+            self.usuario_autenticado
+        )
+        RegistrarProductoAPI(
+            ProductoRegistro(nombre="Aceite", codigo="PROD-002", precio=6500, categoria_id=2),
+            self.usuario_autenticado
+        )
+
+        respuesta = ConsultarProductosAPI(self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Consulta de productos exitosa")
+        self.assertEqual(len(respuesta["data"]), 2)
+        self.assertEqual(respuesta["data"][0]["nombre"], "Arroz")
+        self.assertEqual(respuesta["data"][0]["codigo"], "PROD-001")
+        self.assertEqual(respuesta["data"][0]["precio"], 3500.0)
+        self.assertEqual(respuesta["data"][0]["categoria"], "Granos")
+        self.assertEqual(respuesta["data"][1]["categoria"], "Abarrotes")
+
+    # CASO 2: NO EXISTEN PRODUCTOS REGISTRADOS
+    def test_consulta_sin_productos_registrados(self):
+        respuesta = ConsultarProductosAPI(self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "No existen productos registrados")
+        self.assertEqual(respuesta["data"], [])
+
+    # CASO 3: ERROR DURANTE LA CONSULTA DE PRODUCTOS
+    @patch(
+        "microservicios.productos.repositorio.productoRepositorio.ConsultarProductosRepositorio",
+        side_effect=RuntimeError("Error simulado de base de datos")
+    )
+    def test_error_durante_consulta_productos(self, mock_consultar):
+        respuesta = ConsultarProductosAPI(self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "No fue posible consultar los productos")
+        self.assertEqual(cuerpo["data"], [])
+
+    # CASO 4: CONSULTA DEL DETALLE DE UN PRODUCTO
+    def test_consulta_detalle_producto(self):
+        RegistrarProductoAPI(
+            ProductoRegistro(nombre="Arroz", codigo="PROD-001", precio=3500, categoria_id=1),
+            self.usuario_autenticado
+        )
+
+        respuesta = ObtenerProductoPorIdAPI(1, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Consulta de producto exitosa")
+        self.assertEqual(respuesta["data"]["id"], 1)
+        self.assertEqual(respuesta["data"]["nombre"], "Arroz")
+        self.assertEqual(respuesta["data"]["codigo"], "PROD-001")
+        self.assertEqual(respuesta["data"]["precio"], 3500.0)
+        self.assertEqual(respuesta["data"]["categoria"], "Granos")
+
+    # CASO 5: CONSULTA DE PRODUCTO INEXISTENTE
+    def test_consulta_producto_inexistente(self):
+        respuesta = ObtenerProductoPorIdAPI(999, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "No se encontró el producto solicitado")
 
 
 if __name__ == "__main__":
