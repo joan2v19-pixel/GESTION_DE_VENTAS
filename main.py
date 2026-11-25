@@ -8,6 +8,7 @@ from microservicios.categorias.api.categoriaApi import router as categoriaRouter
 from microservicios.productos.api.productoApi import router as productoRouter
 from microservicios.inventario.api.inventarioApi import router as inventarioRouter
 from microservicios.ventas.api.ventaApi import router as ventaRouter
+from microservicios.comprobantes.api.comprobanteApi import router as comprobanteRouter
 
 # IMPORTAR LA FUNCIÓN PARA INICIALIZAR EL SUPERADMINISTRADOR
 from microservicios.usuarios.dominio.usuarioDominio import InicializarSuperadministradorDominio
@@ -53,6 +54,10 @@ app.include_router(inventarioRouter)
 
 # REGISTRAR MICROSERVICIO DE VENTAS
 app.include_router(ventaRouter)
+
+
+# REGISTRAR MICROSERVICIO DE COMPROBANTES
+app.include_router(comprobanteRouter)
 
 
 # DEFINIR RUTA PRINCIPAL
