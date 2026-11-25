@@ -206,5 +206,114 @@ class TestComprobantes(unittest.TestCase):
         self.assertIn("/api/v1/comprobantes/{comprobante_id}", esquema["paths"])
 
 
+# PRUEBAS UNITARIAS PARA CONSULTAR LOS DATOS DE UN COMPROBANTE DE VENTA
+class TestConsultaComprobante(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        comprobanteRepositorio.comprobantes.clear()
+        ventaRepositorio.ventas.clear()
+        inventarioRepositorio.inventarios.clear()
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+        clienteRepositorio.clientes.clear()
+
+        clienteRepositorio.RegistrarClienteRepositorio({
+            "identificacion": "123456789",
+            "nombre": "Juan Pérez",
+            "telefono": "3001234567",
+            "correo": "juan@ejemplo.com"
+        })
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Producto A",
+            "codigo": "PROD-001",
+            "precio": 10000.0,
+            "categoria_id": 1
+        })
+
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+        RegistrarExistenciasInicialesAPI(
+            ExistenciasInicialesRegistro(producto_id=1, cantidad_inicial=50),
+            self.usuario_autenticado
+        )
+
+        venta = RegistrarVentaAPI(
+            VentaRegistro(cliente_id=1),
+            self.usuario_autenticado
+        )["data"]
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            venta["venta_id"],
+            self.usuario_autenticado
+        )
+        ConfirmarVentaAPI(
+            venta["venta_id"],
+            ConfirmarVentaSolicitud(confirmar=True),
+            self.usuario_autenticado
+        )
+        GenerarComprobanteAPI(
+            ComprobanteRegistro(venta_id=venta["venta_id"]),
+            self.usuario_autenticado
+        )
+
+    # CASO 1 Y CASO 4: CONSULTA EXITOSA Y VERIFICACIÓN SIN MODIFICAR LOS DATOS
+    def test_consulta_exitosa_y_verificacion_comprobante(self):
+        respuesta = ObtenerComprobantePorIdAPI(1, self.usuario_autenticado)
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["message"], "Consulta del comprobante exitosa")
+        self.assertEqual(respuesta["data"]["comprobante_id"], 1)
+        self.assertEqual(respuesta["data"]["venta_id"], 1)
+        self.assertEqual(respuesta["data"]["cliente"]["nombre"], "Juan Pérez")
+        self.assertEqual(respuesta["data"]["cliente"]["identificacion"], "123456789")
+        self.assertEqual(respuesta["data"]["productos"][0]["nombre"], "Producto A")
+        self.assertEqual(respuesta["data"]["productos"][0]["cantidad"], 2)
+        self.assertEqual(respuesta["data"]["productos"][0]["subtotal"], 20000.0)
+        self.assertEqual(respuesta["data"]["total"], 20000.0)
+
+        # VERIFICAR QUE LA CONSULTA NO MODIFICÓ LOS DATOS ALMACENADOS
+        almacenado = comprobanteRepositorio.ObtenerComprobantePorIdRepositorio(1)
+        self.assertEqual(almacenado["total"], 20000.0)
+        self.assertEqual(almacenado["productos"][0]["cantidad"], 2)
+
+    # CASO 2: COMPROBANTE INEXISTENTE
+    def test_consulta_comprobante_inexistente(self):
+        respuesta = ObtenerComprobantePorIdAPI(999, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "No se encontró el comprobante solicitado")
+
+    # CASO 3: ERROR DURANTE LA CONSULTA
+    @patch(
+        "microservicios.comprobantes.repositorio.comprobanteRepositorio.ObtenerComprobantePorIdRepositorio",
+        side_effect=RuntimeError("Error simulado de base de datos")
+    )
+    def test_error_durante_consulta_comprobante(self, mock_consulta):
+        respuesta = ObtenerComprobantePorIdAPI(1, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "No fue posible consultar el comprobante")
+
+    # VERIFICAR DOCUMENTACIÓN OPENAPI DE GET /api/v1/comprobantes/{comprobante_id}
+    def test_documentacion_openapi_consulta_comprobante(self):
+        esquema = app.openapi()
+        ruta = "/api/v1/comprobantes/{comprobante_id}"
+        self.assertIn(ruta, esquema["paths"])
+        self.assertIn("get", esquema["paths"][ruta])
+
+
 if __name__ == "__main__":
     unittest.main()

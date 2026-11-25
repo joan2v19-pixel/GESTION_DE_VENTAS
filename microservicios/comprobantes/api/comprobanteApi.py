@@ -182,7 +182,64 @@ def ConsultarComprobantesAPI(
     "/{comprobante_id}",
     status_code=status.HTTP_200_OK,
     summary="Consultar un comprobante por ID",
-    description="Obtiene la información detallada de un comprobante a partir de su identificador."
+    description=(
+        "Recupera la información de un comprobante previamente generado y verifica "
+        "su asociación con una venta registrada, mostrando los datos del cliente, "
+        "los productos, cantidades, subtotales y el total sin modificar los datos."
+    ),
+    responses={
+        200: {
+            "description": "Consulta del comprobante exitosa",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Consulta del comprobante exitosa",
+                        "data": {
+                            "comprobante_id": 1,
+                            "venta_id": 1,
+                            "fecha_emision": "2026-11-25T15:20:00",
+                            "cliente": {
+                                "nombre": "Juan Pérez",
+                                "identificacion": "123456789"
+                            },
+                            "productos": [
+                                {
+                                    "nombre": "Producto A",
+                                    "cantidad": 2,
+                                    "precio_unitario": 10000.0,
+                                    "subtotal": 20000.0
+                                }
+                            ],
+                            "total": 20000.0
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "El comprobante solicitado no existe",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No se encontró el comprobante solicitado",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar el comprobante",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible consultar el comprobante",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
 )
 def ObtenerComprobantePorIdAPI(
     comprobante_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DEL COMPROBANTE"),
@@ -203,10 +260,19 @@ def ObtenerComprobantePorIdAPI(
             )
 
         return {
-            "message": "Consulta de comprobante exitosa",
+            "message": "Consulta del comprobante exitosa",
             "data": comprobante,
             "success": True
         }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
 
     except Exception:
         return JSONResponse(

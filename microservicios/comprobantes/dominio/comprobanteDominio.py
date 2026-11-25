@@ -71,6 +71,17 @@ def ConsultarComprobantesDominio() -> list[dict]:
     return comprobanteRepositorio.ConsultarComprobantesRepositorio()
 
 
-# CONSULTAR UN COMPROBANTE POR SU IDENTIFICADOR
+# CONSULTAR UN COMPROBANTE POR SU IDENTIFICADOR VERIFICANDO SU VENTA ASOCIADA
 def ObtenerComprobantePorIdDominio(comprobante_id: int) -> dict | None:
-    return comprobanteRepositorio.ObtenerComprobantePorIdRepositorio(comprobante_id)
+    comprobante = comprobanteRepositorio.ObtenerComprobantePorIdRepositorio(
+        comprobante_id
+    )
+    if comprobante is None:
+        return None
+
+    # VERIFICAR QUE EL COMPROBANTE ESTÉ ASOCIADO A UNA VENTA REGISTRADA
+    venta = ventaServicio.ObtenerVentaPorIdServicio(comprobante["venta_id"])
+    if venta is None:
+        raise LookupError("La venta asociada al comprobante no existe")
+
+    return comprobante
