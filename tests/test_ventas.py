@@ -12,10 +12,19 @@ from microservicios.inventario.api.inventarioApi import RegistrarExistenciasInic
 from microservicios.inventario.repositorio import inventarioRepositorio
 from microservicios.inventario.servicio import inventarioServicio
 from microservicios.productos.repositorio import productoRepositorio
-from microservicios.ventas.api.dtos import ConfirmarVentaSolicitud, VentaRegistro
+from microservicios.ventas.api.dtos import (
+    ConfirmarVentaSolicitud,
+    DetalleVentaActualizar,
+    DetalleVentaAgregar,
+    VentaRegistro
+)
 from microservicios.ventas.api.ventaApi import (
+    ActualizarDetalleVentaAPI,
+    AgregarDetalleVentaAPI,
     ConfirmarVentaAPI,
+    ConsultarDetalleVentaAPI,
     ConsultarVentasAPI,
+    EliminarDetalleVentaAPI,
     RegistrarVentaAPI
 )
 from microservicios.ventas.repositorio import ventaRepositorio
@@ -321,6 +330,186 @@ class TestRegistroVentaCliente(unittest.TestCase):
         self.assertFalse(cuerpo["success"])
         self.assertEqual(cuerpo["message"], "No fue posible registrar la venta")
         self.assertEqual(len(ventaRepositorio.ventas), 0)
+
+
+# PRUEBAS UNITARIAS PARA AGREGAR, MODIFICAR Y RETIRAR PRODUCTOS DEL DETALLE DE UNA VENTA
+class TestDetalleVenta(unittest.TestCase):
+
+    # PREPARAR ESTADO LIMPIO ANTES DE CADA PRUEBA
+    def setUp(self):
+        ventaRepositorio.ventas.clear()
+        productoRepositorio.productos.clear()
+        categoriaRepositorio.categorias.clear()
+        clienteRepositorio.clientes.clear()
+
+        clienteRepositorio.RegistrarClienteRepositorio({
+            "identificacion": "1234567890",
+            "nombre": "Juan Perez",
+            "telefono": "3001234567",
+            "correo": "juan@ejemplo.com"
+        })
+        categoriaRepositorio.RegistrarCategoriaRepositorio({
+            "nombre": "Granos",
+            "descripcion": "Productos de granos y cereales"
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Arroz",
+            "codigo": "PROD-001",
+            "precio": 3500.0,
+            "categoria_id": 1
+        })
+        productoRepositorio.RegistrarProductoRepositorio({
+            "nombre": "Aceite",
+            "codigo": "PROD-002",
+            "precio": 6500.0,
+            "categoria_id": 1
+        })
+
+        self.usuario_autenticado = {
+            "id": 1,
+            "nombreUsuario": "superadmin",
+            "esSuperadministrador": True
+        }
+
+        RegistrarVentaAPI(VentaRegistro(cliente_id=1), self.usuario_autenticado)
+
+    # CASO 1: AGREGAR UN PRODUCTO CORRECTAMENTE AL DETALLE DE LA VENTA
+    def test_agregar_producto_detalle_venta(self):
+        respuesta = AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            venta_id=1,
+            usuario_autenticado=self.usuario_autenticado
+        )
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(
+            respuesta["message"],
+            "Producto agregado correctamente al detalle de la venta"
+        )
+        self.assertEqual(respuesta["data"]["venta_id"], 1)
+        self.assertEqual(respuesta["data"]["producto_id"], 1)
+        self.assertEqual(respuesta["data"]["cantidad"], 2)
+
+        detalle = ConsultarDetalleVentaAPI(1, self.usuario_autenticado)
+        self.assertEqual(len(detalle["data"]), 1)
+        self.assertEqual(detalle["data"][0]["nombre_producto"], "Arroz")
+
+    # CASO 2: AGREGAR VARIOS PRODUCTOS A UNA VENTA
+    def test_agregar_varios_productos_venta(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=4),
+            1,
+            self.usuario_autenticado
+        )
+
+        detalle = ConsultarDetalleVentaAPI(1, self.usuario_autenticado)
+        self.assertTrue(detalle["success"])
+        self.assertEqual(len(detalle["data"]), 2)
+        self.assertEqual(detalle["data"][0]["cantidad"], 2)
+        self.assertEqual(detalle["data"][1]["cantidad"], 4)
+
+    # CASO 3: MODIFICAR LA CANTIDAD DE UN PRODUCTO EN EL DETALLE
+    def test_modificar_cantidad_producto_detalle(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=4),
+            1,
+            self.usuario_autenticado
+        )
+
+        respuesta = ActualizarDetalleVentaAPI(
+            DetalleVentaActualizar(cantidad=7),
+            venta_id=1,
+            producto_id=1,
+            usuario_autenticado=self.usuario_autenticado
+        )
+
+        self.assertTrue(respuesta["success"])
+        self.assertEqual(respuesta["data"]["cantidad"], 7)
+
+        detalle = ConsultarDetalleVentaAPI(1, self.usuario_autenticado)
+        self.assertEqual(detalle["data"][0]["cantidad"], 7)
+        self.assertEqual(detalle["data"][1]["cantidad"], 4)
+
+    # CASO 4: RETIRAR UN PRODUCTO DEL DETALLE ANTES DE CONFIRMAR
+    def test_retirar_producto_detalle_venta(self):
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=1, cantidad=2),
+            1,
+            self.usuario_autenticado
+        )
+        AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=2, cantidad=4),
+            1,
+            self.usuario_autenticado
+        )
+
+        respuesta = EliminarDetalleVentaAPI(
+            venta_id=1,
+            producto_id=1,
+            usuario_autenticado=self.usuario_autenticado
+        )
+
+        self.assertTrue(respuesta["success"])
+        detalle = ConsultarDetalleVentaAPI(1, self.usuario_autenticado)
+        self.assertEqual(len(detalle["data"]), 1)
+        self.assertEqual(detalle["data"][0]["producto_id"], 2)
+
+    # CASO 5: INGRESAR UNA CANTIDAD INVÁLIDA O PRODUCTO INEXISTENTE
+    def test_cantidad_invalida_o_producto_inexistente(self):
+        for cantidad_invalida in [0, -2, 1.5, "string", True, None]:
+            with self.assertRaises(ValidationError):
+                DetalleVentaAgregar(producto_id=1, cantidad=cantidad_invalida)
+            with self.assertRaises(ValidationError):
+                DetalleVentaActualizar(cantidad=cantidad_invalida)
+
+        respuesta = AgregarDetalleVentaAPI(
+            DetalleVentaAgregar(producto_id=999, cantidad=2),
+            venta_id=1,
+            usuario_autenticado=self.usuario_autenticado
+        )
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(cuerpo["message"], "El producto seleccionado no existe")
+
+    # CASO 6: INTENTAR CONTINUAR/CONFIRMAR UNA VENTA SIN PRODUCTOS EN SU DETALLE
+    def test_impedir_continuar_venta_detalle_vacio(self):
+        respuesta = ConfirmarVentaAPI(1, None, self.usuario_autenticado)
+        cuerpo = json.loads(respuesta.body.decode("utf-8"))
+
+        self.assertEqual(respuesta.status_code, 409)
+        self.assertFalse(cuerpo["success"])
+        self.assertEqual(
+            cuerpo["message"],
+            "Debe agregar al menos un producto al detalle de la venta"
+        )
+
+    # VERIFICAR QUE LOS ENDPOINTS DE DETALLE ESTÉN EN OPENAPI / SWAGGER
+    def test_documentacion_openapi_detalle_venta(self):
+        esquema = app.openapi()
+        self.assertIn("/api/v1/ventas/{venta_id}/detalles", esquema["paths"])
+        self.assertIn("post", esquema["paths"]["/api/v1/ventas/{venta_id}/detalles"])
+        self.assertIn("get", esquema["paths"]["/api/v1/ventas/{venta_id}/detalles"])
+        self.assertIn("/api/v1/ventas/{venta_id}/detalles/{producto_id}", esquema["paths"])
+        self.assertIn(
+            "put",
+            esquema["paths"]["/api/v1/ventas/{venta_id}/detalles/{producto_id}"]
+        )
+        self.assertIn(
+            "delete",
+            esquema["paths"]["/api/v1/ventas/{venta_id}/detalles/{producto_id}"]
+        )
 
 
 if __name__ == "__main__":

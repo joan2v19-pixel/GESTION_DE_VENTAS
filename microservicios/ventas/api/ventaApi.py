@@ -2,7 +2,12 @@ from fastapi import APIRouter, Body, Path, status, Depends
 from fastapi.responses import JSONResponse
 
 from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
-from microservicios.ventas.api.dtos import ConfirmarVentaSolicitud, VentaRegistro
+from microservicios.ventas.api.dtos import (
+    ConfirmarVentaSolicitud,
+    DetalleVentaActualizar,
+    DetalleVentaAgregar,
+    VentaRegistro
+)
 from microservicios.ventas.servicio import ventaServicio
 
 
@@ -283,6 +288,264 @@ def ConfirmarVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible confirmar la venta y actualizar el inventario",
+                "success": False
+            }
+        )
+
+
+# AGREGAR UN PRODUCTO Y CANTIDAD AL DETALLE DE UNA VENTA PENDIENTE
+@router.post(
+    "/{venta_id}/detalles",
+    status_code=status.HTTP_201_CREATED,
+    summary="Agregar producto y cantidad al detalle de una venta",
+    description=(
+        "Agrega un producto registrado y su cantidad (entero positivo) al detalle "
+        "de una venta en estado pendiente. Si el producto ya existe en el detalle, "
+        "acumula la cantidad."
+    ),
+    responses={
+        201: {
+            "description": "Producto agregado correctamente al detalle de la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Producto agregado correctamente al detalle de la venta",
+                        "data": {
+                            "venta_id": 1,
+                            "producto_id": 15,
+                            "cantidad": 2
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Venta o producto no encontrado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El producto seleccionado no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "La venta ya fue confirmada y no permite modificaciones",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No se puede modificar el detalle de una venta que ya fue confirmada",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al agregar el producto al detalle",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible agregar el producto al detalle de la venta",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def AgregarDetalleVentaAPI(
+    datos: DetalleVentaAgregar,
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        detalle = ventaServicio.AgregarDetalleVentaServicio(
+            venta_id,
+            datos.model_dump()
+        )
+        return {
+            "message": "Producto agregado correctamente al detalle de la venta",
+            "data": detalle,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible agregar el producto al detalle de la venta",
+                "success": False
+            }
+        )
+
+
+# CONSULTAR EL DETALLE DE PRODUCTOS Y CANTIDADES DE UNA VENTA
+@router.get(
+    "/{venta_id}/detalles",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar detalle de una venta",
+    description="Obtiene los productos y cantidades agregadas al detalle de una venta."
+)
+def ConsultarDetalleVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        detalles = ventaServicio.ConsultarDetalleVentaServicio(venta_id)
+
+        if not detalles:
+            return {
+                "message": "El detalle de la venta está vacío",
+                "data": [],
+                "success": True
+            }
+
+        return {
+            "message": "Consulta del detalle de la venta exitosa",
+            "data": detalles,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "data": [],
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible consultar el detalle de la venta",
+                "data": [],
+                "success": False
+            }
+        )
+
+
+# MODIFICAR LA CANTIDAD DE UN PRODUCTO EN EL DETALLE DE UNA VENTA PENDIENTE
+@router.put(
+    "/{venta_id}/detalles/{producto_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Modificar la cantidad de un producto en el detalle",
+    description="Actualiza la cantidad de un producto previamente agregado al detalle de una venta pendiente."
+)
+def ActualizarDetalleVentaAPI(
+    datos: DetalleVentaActualizar,
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    producto_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DEL PRODUCTO"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        detalle = ventaServicio.ActualizarDetalleVentaServicio(
+            venta_id,
+            producto_id,
+            datos.cantidad
+        )
+        return {
+            "message": "Cantidad del producto actualizada correctamente",
+            "data": detalle,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible actualizar la cantidad del producto",
+                "success": False
+            }
+        )
+
+
+# RETIRAR UN PRODUCTO DEL DETALLE DE UNA VENTA PENDIENTE
+@router.delete(
+    "/{venta_id}/detalles/{producto_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Retirar un producto del detalle de una venta",
+    description="Elimina un producto del detalle de una venta pendiente antes de confirmarla."
+)
+def EliminarDetalleVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    producto_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DEL PRODUCTO"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        resultado = ventaServicio.EliminarDetalleVentaServicio(
+            venta_id,
+            producto_id
+        )
+        return {
+            "message": "Producto retirado del detalle de la venta correctamente",
+            "data": resultado,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible retirar el producto del detalle de la venta",
                 "success": False
             }
         )

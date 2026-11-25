@@ -101,3 +101,32 @@ class ConfirmarVentaSolicitud(BaseModel):
             valor,
             "EL IDENTIFICADOR DE LA VENTA DEBE SER UN NÚMERO ENTERO POSITIVO."
         )
+
+
+# DTO PARA AGREGAR UN PRODUCTO AL DETALLE DE UNA VENTA
+class DetalleVentaAgregar(VentaProductoItem):
+    pass
+
+
+# DTO PARA ACTUALIZAR LA CANTIDAD DE UN PRODUCTO EN EL DETALLE DE UNA VENTA
+class DetalleVentaActualizar(BaseModel):
+
+    cantidad: int = Field(
+        ...,
+        gt=0,
+        description="NUEVA CANTIDAD DEL PRODUCTO EN EL DETALLE (ENTERO MAYOR A CERO)",
+        examples=[5]
+    )
+
+    model_config = ConfigDict(
+        extra="forbid"
+    )
+
+    # VALIDAR QUE LA CANTIDAD SEA UN ENTERO POSITIVO VÁLIDO
+    @field_validator("cantidad", mode="before")
+    @classmethod
+    def ValidarCantidad(cls, valor):
+        return _ValidarEnteroPositivo(
+            valor,
+            "LA CANTIDAD DEBE SER UN NÚMERO ENTERO MAYOR A CERO."
+        )
