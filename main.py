@@ -1,0 +1,62 @@
+from fastapi import FastAPI
+
+from microservicios.usuarios.api.usuarioApi import router as usuarios_router
+from microservicios.categorias.api.categoriaApi import router as categoriaRouter
+from microservicios.productos.api.productoApi import router as productoRouter
+from microservicios.inventario.api.inventarioApi import router as inventarioRouter
+from microservicios.clientes.api.clienteApi import router as clientes_router
+from microservicios.proveedores.api.proveedorApi import router as proveedorRouter
+from microservicios.ventas.api.ventaApi import router as ventaRouter
+from microservicios.comprobantes.api.comprobanteApi import router as comprobanteRouter
+
+# IMPORTAR LA FUNCIÓN PARA INICIALIZAR EL SUPERADMINISTRADOR
+from microservicios.usuarios.dominio.usuarioDominio import InicializarSuperadministradorDominio
+
+# CREAR LA APLICACIÓN FASTAPI
+app = FastAPI(
+    title="Sistema de Gestión de Ventas e Inventario",
+    description="Web Services para la gestión de usuarios, catálogo, inventario, ventas y comprobantes",
+    version="1.0.0"
+)
+
+
+# INICIALIZAR EL SUPERADMINISTRADOR AL INICIAR LA APLICACIÓN
+@app.on_event("startup")
+def InicializarSistema():
+
+    InicializarSuperadministradorDominio()
+
+
+# 1. REGISTRAR MICROSERVICIO DE USUARIOS (AUTENTICACIÓN)
+app.include_router(usuarios_router)
+
+# 2. REGISTRAR MICROSERVICIO DE CATEGORÍAS
+app.include_router(categoriaRouter)
+
+# 3. REGISTRAR MICROSERVICIO DE PRODUCTOS
+app.include_router(productoRouter)
+
+# 4. REGISTRAR MICROSERVICIO DE INVENTARIO
+app.include_router(inventarioRouter)
+
+# 5. REGISTRAR MICROSERVICIO DE CLIENTES
+app.include_router(clientes_router)
+
+# 6. REGISTRAR MICROSERVICIO DE PROVEEDORES
+app.include_router(proveedorRouter)
+
+# 7. REGISTRAR MICROSERVICIO DE VENTAS
+app.include_router(ventaRouter)
+
+# 8. REGISTRAR MICROSERVICIO DE COMPROBANTES
+app.include_router(comprobanteRouter)
+
+
+# DEFINIR RUTA PRINCIPAL
+@app.get("/")
+def inicio():
+
+    return {
+        "message": "Sistema de Gestión de Ventas e Inventario",
+        "estado": "Funcionando correctamente"
+    }
