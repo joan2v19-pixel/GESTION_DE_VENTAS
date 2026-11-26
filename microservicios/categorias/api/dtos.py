@@ -6,8 +6,20 @@ import re
 # DTO PARA REGISTRAR UNA CATEGORÍA
 class CategoriaRegistro(BaseModel):
 
-    nombre: str = Field(..., min_length=3, max_length=100)
-    descripcion: str = Field(..., min_length=5, max_length=250)
+    nombre: str = Field(
+        ...,
+        min_length=3,
+        max_length=100,
+        description="NOMBRE ÚNICO DE LA CATEGORÍA (LETRAS, NÚMEROS Y ESPACIOS, ENTRE 3 Y 100 CARACTERES).",
+        examples=["Accesorios"]
+    )
+    descripcion: str = Field(
+        ...,
+        min_length=5,
+        max_length=250,
+        description="DESCRIPCIÓN DETALLADA DE LA CATEGORÍA (ENTRE 5 Y 250 CARACTERES).",
+        examples=["Categoría para productos accesorios"]
+    )
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
@@ -32,8 +44,20 @@ class CategoriaRegistro(BaseModel):
 # DTO PARA ACTUALIZAR UNA CATEGORÍA
 class CategoriaActualizar(BaseModel):
 
-    nombre: str = Field(..., min_length=3, max_length=100)
-    descripcion: str = Field(..., min_length=5, max_length=250)
+    nombre: str = Field(
+        ...,
+        min_length=3,
+        max_length=100,
+        description="NOMBRE ÚNICO DE LA CATEGORÍA (LETRAS, NÚMEROS Y ESPACIOS, ENTRE 3 Y 100 CARACTERES).",
+        examples=["Bebidas"]
+    )
+    descripcion: str = Field(
+        ...,
+        min_length=5,
+        max_length=250,
+        description="DESCRIPCIÓN DETALLADA DE LA CATEGORÍA (ENTRE 5 Y 250 CARACTERES).",
+        examples=["Productos líquidos para consumo"]
+    )
 
     model_config = ConfigDict(
         str_strip_whitespace=True,

@@ -1,5 +1,7 @@
 
-from fastapi import APIRouter, HTTPException, status, Depends
+import re
+
+from fastapi import APIRouter, HTTPException, Path, Query, status, Depends
 
 from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
 from microservicios.proveedores.api.dtos import ProveedorRegistro, ProveedorActualizar
@@ -13,7 +15,61 @@ router = APIRouter(
 
 
 # Registrar un proveedor
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar un nuevo proveedor",
+    description=(
+        "Permite registrar un nuevo proveedor validando los campos obligatorios, "
+        "los formatos de identificación, nombre, teléfono, correo y dirección, y "
+        "verificando que la identificación no se encuentre registrada previamente."
+    ),
+    responses={
+        201: {
+            "description": "Proveedor registrado exitosamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "PROVEEDOR REGISTRADO EXITOSAMENTE.",
+                        "data": {
+                            "id": 1,
+                            "identificacion": "900123456",
+                            "nombre": "Distribuidora ABC S.A.S.",
+                            "telefono": "3001234567",
+                            "correo": "contacto@distribuidoraabc.com",
+                            "direccion": "Calle 10 # 20-30"
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Datos obligatorios incompletos o con formato inválido",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Verifique los campos ingresados."}
+                }
+            }
+        },
+        409: {
+            "description": "La identificación del proveedor ya se encuentra registrada",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "EL PROVEEDOR YA SE ENCUENTRA REGISTRADO."}
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al almacenar el proveedor",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "NO FUE POSIBLE REGISTRAR EL PROVEEDOR."}
+                }
+            }
+        }
+    }
+)
 def RegistrarProveedorAPI(
     datos: ProveedorRegistro,
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
@@ -43,7 +99,60 @@ def RegistrarProveedorAPI(
 
 
 # Consultar todos los proveedores
-@router.get("/", status_code=status.HTTP_200_OK)
+@router.get(
+    "/",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar y listar proveedores",
+    description=(
+        "Obtiene el listado de todos los proveedores registrados en el sistema en modo "
+        "de solo lectura. Si no hay proveedores registrados, retorna una lista vacía y "
+        "un mensaje informativo."
+    ),
+    responses={
+        200: {
+            "description": "Consulta de proveedores realizada correctamente",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "con_proveedores": {
+                            "summary": "Existen proveedores registrados",
+                            "value": {
+                                "message": "CONSULTA DE PROVEEDORES EXITOSA.",
+                                "data": [
+                                    {
+                                        "id": 1,
+                                        "identificacion": "900123456",
+                                        "nombre": "Distribuidora ABC S.A.S.",
+                                        "telefono": "3001234567",
+                                        "correo": "contacto@distribuidoraabc.com",
+                                        "direccion": "Calle 10 # 20-30"
+                                    }
+                                ],
+                                "success": True
+                            }
+                        },
+                        "sin_proveedores": {
+                            "summary": "No existen proveedores registrados",
+                            "value": {
+                                "message": "NO EXISTEN PROVEEDORES REGISTRADOS.",
+                                "data": [],
+                                "success": True
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar los proveedores",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "NO FUE POSIBLE CONSULTAR LOS PROVEEDORES."}
+                }
+            }
+        }
+    }
+)
 def ConsultarProveedoresAPI(
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
@@ -72,12 +181,90 @@ def ConsultarProveedoresAPI(
 
 
 # Buscar proveedores por diferentes criterios
-@router.get("/buscar", status_code=status.HTTP_200_OK)
+@router.get(
+    "/buscar",
+    status_code=status.HTTP_200_OK,
+    summary="Buscar proveedores por criterios",
+    description=(
+        "Permite buscar proveedores registrados utilizando uno o varios criterios "
+        "(nombre, identificación, teléfono o correo electrónico) en modo de solo lectura."
+    ),
+    responses={
+        200: {
+            "description": "Búsqueda de proveedores ejecutada correctamente",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "con_resultados": {
+                            "summary": "Coincidencias encontradas",
+                            "value": {
+                                "message": "BÚSQUEDA DE PROVEEDORES EXITOSA.",
+                                "data": [
+                                    {
+                                        "id": 1,
+                                        "identificacion": "900123456",
+                                        "nombre": "Distribuidora ABC S.A.S.",
+                                        "telefono": "3001234567",
+                                        "correo": "contacto@distribuidoraabc.com",
+                                        "direccion": "Calle 10 # 20-30"
+                                    }
+                                ],
+                                "success": True
+                            }
+                        },
+                        "sin_resultados": {
+                            "summary": "Sin coincidencias",
+                            "value": {
+                                "message": "NO SE ENCONTRARON PROVEEDORES CON LOS CRITERIOS INGRESADOS.",
+                                "data": [],
+                                "success": True
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Criterios de búsqueda vacíos o con formato inválido",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "DEBE INGRESAR AL MENOS UN CRITERIO DE BÚSQUEDA."}
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al realizar la búsqueda de proveedores",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "NO FUE POSIBLE REALIZAR LA BÚSQUEDA DE PROVEEDORES."}
+                }
+            }
+        }
+    }
+)
 def BuscarProveedoresAPI(
-    nombre: str | None = None,
-    identificacion: str | None = None,
-    telefono: str | None = None,
-    correo: str | None = None,
+    nombre: str | None = Query(
+        default=None,
+        min_length=3,
+        max_length=100,
+        description="NOMBRE O RAZÓN SOCIAL DEL PROVEEDOR."
+    ),
+    identificacion: str | None = Query(
+        default=None,
+        min_length=5,
+        max_length=20,
+        description="NÚMERO DE IDENTIFICACIÓN DEL PROVEEDOR (SOLO DÍGITOS)."
+    ),
+    telefono: str | None = Query(
+        default=None,
+        min_length=7,
+        max_length=15,
+        description="TELÉFONO DE CONTACTO DEL PROVEEDOR (SOLO DÍGITOS)."
+    ),
+    correo: str | None = Query(
+        default=None,
+        description="CORREO ELECTRÓNICO DEL PROVEEDOR."
+    ),
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
@@ -92,6 +279,28 @@ def BuscarProveedoresAPI(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="DEBE INGRESAR AL MENOS UN CRITERIO DE BÚSQUEDA."
+            )
+
+        # Validar formato de los criterios ingresados
+        if identificacion and not identificacion.isdigit():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="LA IDENTIFICACIÓN SOLO DEBE CONTENER NÚMEROS."
+            )
+
+        if nombre and (
+            nombre.lower() == "string"
+            or not re.fullmatch(r"[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9\s.,&'()\-]+", nombre)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="EL NOMBRE CONTIENE CARACTERES NO PERMITIDOS."
+            )
+
+        if telefono and not telefono.isdigit():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="EL TELÉFONO SOLO DEBE CONTENER NÚMEROS."
             )
 
         proveedores = proveedorServicio.BuscarProveedoresServicio(
@@ -125,9 +334,54 @@ def BuscarProveedoresAPI(
 
 
 # Consultar un proveedor por ID
-@router.get("/{id}", status_code=status.HTTP_200_OK)
+@router.get(
+    "/{id}",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar proveedor por ID",
+    description=(
+        "Obtiene la información detallada de un proveedor registrado mediante su "
+        "identificador único sin modificar los datos almacenados."
+    ),
+    responses={
+        200: {
+            "description": "Proveedor consultado exitosamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "PROVEEDOR CONSULTADO EXITOSAMENTE.",
+                        "data": {
+                            "id": 1,
+                            "identificacion": "900123456",
+                            "nombre": "Distribuidora ABC S.A.S.",
+                            "telefono": "3001234567",
+                            "correo": "contacto@distribuidoraabc.com",
+                            "direccion": "Calle 10 # 20-30"
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Proveedor no encontrado",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "NO SE ENCONTRÓ EL PROVEEDOR SOLICITADO."}
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar el proveedor",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "NO FUE POSIBLE CONSULTAR EL PROVEEDOR."}
+                }
+            }
+        }
+    }
+)
 def ObtenerProveedorPorIdAPI(
-    id: int,
+    id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DEL PROVEEDOR A CONSULTAR."),
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
@@ -157,10 +411,72 @@ def ObtenerProveedorPorIdAPI(
 
 
 # Actualizar un proveedor
-@router.put("/{id}", status_code=status.HTTP_200_OK)
+@router.put(
+    "/{id}",
+    status_code=status.HTTP_200_OK,
+    summary="Actualizar información de un proveedor",
+    description=(
+        "Permite modificar los datos personales, de contacto y comerciales de un "
+        "proveedor existente identificado por su ID, validando formatos y evitando "
+        "duplicidad de identificación."
+    ),
+    responses={
+        200: {
+            "description": "Proveedor actualizado exitosamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "PROVEEDOR ACTUALIZADO EXITOSAMENTE.",
+                        "data": {
+                            "id": 1,
+                            "identificacion": "900123456",
+                            "nombre": "Proveedor actualizado",
+                            "telefono": "3009876543",
+                            "correo": "contacto@proveedor.com",
+                            "direccion": "Calle 10 # 20-30"
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Datos obligatorios incompletos o con formato inválido",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "Verifique los datos ingresados."}
+                }
+            }
+        },
+        404: {
+            "description": "Proveedor no encontrado",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "NO SE ENCONTRÓ EL PROVEEDOR SOLICITADO."}
+                }
+            }
+        },
+        409: {
+            "description": "La identificación ya pertenece a otro proveedor",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "LA IDENTIFICACIÓN YA SE ENCUENTRA REGISTRADA."}
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al actualizar el proveedor",
+            "content": {
+                "application/json": {
+                    "example": {"detail": "NO FUE POSIBLE ACTUALIZAR EL PROVEEDOR."}
+                }
+            }
+        }
+    }
+)
 def ActualizarProveedorAPI(
-    id: int,
     datos: ProveedorActualizar,
+    id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DEL PROVEEDOR A ACTUALIZAR."),
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:

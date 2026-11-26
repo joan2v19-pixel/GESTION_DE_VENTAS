@@ -40,20 +40,6 @@ def ObtenerCategoriaPorIdRepositorio(id: int):
 
     return None
 
-# Consultar todas las categorías
-def ConsultarCategoriasRepositorio():
-    return categorias
-
-
-# Consultar una categoría por ID
-def ObtenerCategoriaPorIdRepositorio(id: int):
-
-    for categoria in categorias:
-        if categoria["id"] == id:
-            return categoria
-
-    return None
-
 
 # Actualizar una categoría
 def ActualizarCategoriaRepositorio(id: int, datos_categoria: dict):

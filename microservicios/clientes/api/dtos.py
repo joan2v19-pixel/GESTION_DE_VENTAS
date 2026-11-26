@@ -6,10 +6,32 @@ import re
 # DTO PARA REGISTRAR CLIENTES
 class ClienteRegistro(BaseModel):
 
-    identificacion: str = Field(..., min_length=5, max_length=20)
-    nombre: str = Field(..., min_length=3, max_length=100)
-    telefono: str = Field(..., min_length=7, max_length=15)
-    correo: EmailStr
+    identificacion: str = Field(
+        ...,
+        min_length=5,
+        max_length=20,
+        description="NÚMERO DE IDENTIFICACIÓN ÚNICO DEL CLIENTE (SOLO DÍGITOS, ENTRE 5 Y 20 CARACTERES).",
+        examples=["1234567890"]
+    )
+    nombre: str = Field(
+        ...,
+        min_length=3,
+        max_length=100,
+        description="NOMBRE COMPLETO DEL CLIENTE (SOLO LETRAS Y ESPACIOS, ENTRE 3 Y 100 CARACTERES).",
+        examples=["Juan Pérez"]
+    )
+    telefono: str = Field(
+        ...,
+        min_length=7,
+        max_length=15,
+        description="TELÉFONO DE CONTACTO DEL CLIENTE (SOLO DÍGITOS, ENTRE 7 Y 15 CARACTERES).",
+        examples=["3001234567"]
+    )
+    correo: EmailStr = Field(
+        ...,
+        description="CORREO ELECTRÓNICO VÁLIDO DEL CLIENTE.",
+        examples=["juan.perez@example.com"]
+    )
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
@@ -44,10 +66,32 @@ class ClienteRegistro(BaseModel):
 # DTO PARA ACTUALIZAR CLIENTES
 class ClienteActualizar(BaseModel):
 
-    identificacion: str = Field(..., min_length=5, max_length=20)
-    nombre: str = Field(..., min_length=3, max_length=100)
-    telefono: str = Field(..., min_length=7, max_length=15)
-    correo: EmailStr
+    identificacion: str = Field(
+        ...,
+        min_length=5,
+        max_length=20,
+        description="NÚMERO DE IDENTIFICACIÓN ÚNICO DEL CLIENTE (SOLO DÍGITOS, ENTRE 5 Y 20 CARACTERES).",
+        examples=["1234567890"]
+    )
+    nombre: str = Field(
+        ...,
+        min_length=3,
+        max_length=100,
+        description="NOMBRE COMPLETO DEL CLIENTE (SOLO LETRAS Y ESPACIOS, ENTRE 3 Y 100 CARACTERES).",
+        examples=["Juan Pérez Gómez"]
+    )
+    telefono: str = Field(
+        ...,
+        min_length=7,
+        max_length=15,
+        description="TELÉFONO DE CONTACTO DEL CLIENTE (SOLO DÍGITOS, ENTRE 7 Y 15 CARACTERES).",
+        examples=["3007654321"]
+    )
+    correo: EmailStr = Field(
+        ...,
+        description="CORREO ELECTRÓNICO VÁLIDO DEL CLIENTE.",
+        examples=["juan.gomez@example.com"]
+    )
 
     model_config = ConfigDict(
         str_strip_whitespace=True,

@@ -6,11 +6,39 @@ import re
 # DTO PARA REGISTRAR PROVEEDORES
 class ProveedorRegistro(BaseModel):
 
-    identificacion: str = Field(..., min_length=5, max_length=20)
-    nombre: str = Field(..., min_length=3, max_length=100)
-    telefono: str = Field(..., min_length=7, max_length=15)
-    correo: EmailStr
-    direccion: str = Field(..., min_length=5, max_length=150)
+    identificacion: str = Field(
+        ...,
+        min_length=5,
+        max_length=20,
+        description="NÚMERO DE IDENTIFICACIÓN ÚNICO DEL PROVEEDOR (SOLO DÍGITOS, ENTRE 5 Y 20 CARACTERES).",
+        examples=["900123456"]
+    )
+    nombre: str = Field(
+        ...,
+        min_length=3,
+        max_length=100,
+        description="NOMBRE O RAZÓN SOCIAL DEL PROVEEDOR (ENTRE 3 Y 100 CARACTERES).",
+        examples=["Distribuidora ABC S.A.S."]
+    )
+    telefono: str = Field(
+        ...,
+        min_length=7,
+        max_length=15,
+        description="TELÉFONO DE CONTACTO DEL PROVEEDOR (SOLO DÍGITOS, ENTRE 7 Y 15 CARACTERES).",
+        examples=["3001234567"]
+    )
+    correo: EmailStr = Field(
+        ...,
+        description="CORREO ELECTRÓNICO VÁLIDO DEL PROVEEDOR.",
+        examples=["contacto@distribuidoraabc.com"]
+    )
+    direccion: str = Field(
+        ...,
+        min_length=5,
+        max_length=150,
+        description="DIRECCIÓN FÍSICA O COMERCIAL DEL PROVEEDOR (ENTRE 5 Y 150 CARACTERES).",
+        examples=["Calle 10 # 20-30"]
+    )
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
@@ -53,11 +81,39 @@ class ProveedorRegistro(BaseModel):
 # DTO PARA ACTUALIZAR PROVEEDORES
 class ProveedorActualizar(BaseModel):
 
-    identificacion: str = Field(..., min_length=5, max_length=20)
-    nombre: str = Field(..., min_length=3, max_length=100)
-    telefono: str = Field(..., min_length=7, max_length=15)
-    correo: EmailStr
-    direccion: str = Field(..., min_length=5, max_length=150)
+    identificacion: str = Field(
+        ...,
+        min_length=5,
+        max_length=20,
+        description="NÚMERO DE IDENTIFICACIÓN ÚNICO DEL PROVEEDOR (SOLO DÍGITOS, ENTRE 5 Y 20 CARACTERES).",
+        examples=["900123456"]
+    )
+    nombre: str = Field(
+        ...,
+        min_length=3,
+        max_length=100,
+        description="NOMBRE O RAZÓN SOCIAL DEL PROVEEDOR (ENTRE 3 Y 100 CARACTERES).",
+        examples=["Proveedor actualizado"]
+    )
+    telefono: str = Field(
+        ...,
+        min_length=7,
+        max_length=15,
+        description="TELÉFONO DE CONTACTO DEL PROVEEDOR (SOLO DÍGITOS, ENTRE 7 Y 15 CARACTERES).",
+        examples=["3009876543"]
+    )
+    correo: EmailStr = Field(
+        ...,
+        description="CORREO ELECTRÓNICO VÁLIDO DEL PROVEEDOR.",
+        examples=["contacto@proveedor.com"]
+    )
+    direccion: str = Field(
+        ...,
+        min_length=5,
+        max_length=150,
+        description="DIRECCIÓN FÍSICA O COMERCIAL DEL PROVEEDOR (ENTRE 5 Y 150 CARACTERES).",
+        examples=["Calle 10 # 20-30"]
+    )
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
