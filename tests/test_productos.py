@@ -264,10 +264,10 @@ class TestConsultaProductos(unittest.TestCase):
         self.assertEqual(respuesta["message"], "No existen productos registrados")
         self.assertEqual(respuesta["data"], [])
 
-    # CASO 3: ERROR DURANTE LA CONSULTA DE PRODUCTOS
+    # CASO 3: ERROR DURANTE LA CONSULTA DE PRODUCTOS (INCLUIDO ERROR DE CONEXIÓN)
     @patch(
         "microservicios.productos.repositorio.productoRepositorio.ConsultarProductosRepositorio",
-        side_effect=RuntimeError("Error simulado de base de datos")
+        side_effect=ConnectionError("Sin conexión con el servidor")
     )
     def test_error_durante_consulta_productos(self, mock_consultar):
         respuesta = ConsultarProductosAPI(self.usuario_autenticado)

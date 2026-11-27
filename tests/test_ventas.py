@@ -1069,10 +1069,10 @@ class TestConsultaVentas(unittest.TestCase):
         self.assertFalse(cuerpo["success"])
         self.assertEqual(cuerpo["message"], "No se encontró la venta solicitada")
 
-    # CASO 7: ERROR AL CONSULTAR LAS VENTAS
+    # CASO 7: ERROR AL CONSULTAR LAS VENTAS (INCLUIDO ERROR DE CONEXIÓN)
     @patch(
         "microservicios.ventas.repositorio.ventaRepositorio.ConsultarVentasRepositorio",
-        side_effect=RuntimeError("Error simulado de base de datos")
+        side_effect=ConnectionError("Sin conexión con el servidor")
     )
     def test_error_al_consultar_ventas(self, mock_consultar):
         respuesta = ConsultarVentasAPI(usuario_autenticado=self.usuario_autenticado)
