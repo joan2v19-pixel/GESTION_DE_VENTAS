@@ -1,48 +1,51 @@
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 import re
+
+
+def _EsValorPorDefecto(valor: str) -> bool:
+    return valor.strip().lower() == "string"
 
 
 # DTO PARA REGISTRAR USUARIOS
 class UsuarioRegistro(BaseModel):
     nombre: str = Field(
-        ...,
+        default="string",
         min_length=3,
         max_length=100,
-        description="NOMBRE COMPLETO DEL USUARIO (SOLO LETRAS Y ESPACIOS, ENTRE 3 Y 100 CARACTERES).",
-        examples=["Joan Sierra"]
+        description="NOMBRE COMPLETO DEL USUARIO (SOLO LETRAS Y ESPACIOS, ENTRE 3 Y 100 CARACTERES)."
     )
     identificacion: str = Field(
-        ...,
+        default="string",
         min_length=5,
         max_length=20,
-        description="NÚMERO DE IDENTIFICACIÓN ÚNICO DEL USUARIO (SOLO DÍGITOS, ENTRE 5 Y 20 CARACTERES).",
-        examples=["1234567890"]
+        description="NÚMERO DE IDENTIFICACIÓN ÚNICO DEL USUARIO (SOLO DÍGITOS, ENTRE 5 Y 20 CARACTERES)."
     )
     nombreUsuario: str = Field(
-        ...,
+        default="string",
         min_length=3,
         max_length=30,
-        description="NOMBRE DE USUARIO ÚNICO PARA INICIAR SESIÓN (LETRAS, NÚMEROS, PUNTO, GUION Y GUION BAJO).",
-        examples=["Joan"]
+        description="NOMBRE DE USUARIO ÚNICO PARA INICIAR SESIÓN (LETRAS, NÚMEROS, PUNTO, GUION Y GUION BAJO)."
     )
     contrasena: str = Field(
-        ...,
+        default="string",
         min_length=8,
         max_length=100,
-        description="CONTRASEÑA DE ACCESO (MÍNIMO 8 CARACTERES, CON MAYÚSCULA, MINÚSCULA, NÚMERO Y CARÁCTER ESPECIAL).",
-        examples=["ClaveSegura123*"]
+        description="CONTRASEÑA DE ACCESO (MÍNIMO 8 CARACTERES, CON MAYÚSCULA, MINÚSCULA, NÚMERO Y CARÁCTER ESPECIAL)."
     )
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
-        extra="forbid"
+        extra="forbid",
+        validate_default=True
     )
 
     # VALIDAR QUE EL NOMBRE SOLO CONTENGA LETRAS Y ESPACIOS
     @field_validator("nombre")
     @classmethod
     def ValidarNombre(cls, valor):
+        if _EsValorPorDefecto(valor):
+            raise ValueError("EL NOMBRE NO PUEDE SER 'string'.")
         if not re.fullmatch(r"[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+", valor):
             raise ValueError("EL NOMBRE SOLO DEBE CONTENER LETRAS Y ESPACIOS.")
         return valor
@@ -51,7 +54,7 @@ class UsuarioRegistro(BaseModel):
     @field_validator("identificacion")
     @classmethod
     def ValidarIdentificacion(cls, valor):
-        if not valor.isdigit():
+        if _EsValorPorDefecto(valor) or not valor.isdigit():
             raise ValueError("LA IDENTIFICACIÓN SOLO DEBE CONTENER NÚMEROS.")
         return valor
 
@@ -59,6 +62,8 @@ class UsuarioRegistro(BaseModel):
     @field_validator("nombreUsuario")
     @classmethod
     def ValidarNombreUsuario(cls, valor):
+        if _EsValorPorDefecto(valor):
+            raise ValueError("EL NOMBRE DE USUARIO NO PUEDE SER 'string'.")
         if not re.fullmatch(r"[a-zA-Z0-9_.-]+", valor):
             raise ValueError(
                 "EL NOMBRE DE USUARIO SOLO PUEDE CONTENER LETRAS, NÚMEROS, PUNTO, GUION Y GUION BAJO."
@@ -69,6 +74,8 @@ class UsuarioRegistro(BaseModel):
     @field_validator("contrasena")
     @classmethod
     def ValidarContrasena(cls, valor):
+        if _EsValorPorDefecto(valor):
+            raise ValueError("LA CONTRASEÑA NO PUEDE SER 'string'.")
         if not re.search(r"[A-Z]", valor):
             raise ValueError("LA CONTRASEÑA DEBE CONTENER UNA MAYÚSCULA.")
 
@@ -87,25 +94,16 @@ class UsuarioRegistro(BaseModel):
 # DTO PARA ACTUALIZAR USUARIOS
 class UsuarioActualizar(BaseModel):
     nombre: str = Field(
-        ...,
-        min_length=3,
-        max_length=100,
-        description="NOMBRE COMPLETO DEL USUARIO (SOLO LETRAS Y ESPACIOS, ENTRE 3 Y 100 CARACTERES).",
-        examples=["Laura Gomez"]
+        default="string",
+        description="NOMBRE COMPLETO DEL USUARIO (SOLO LETRAS Y ESPACIOS, ENTRE 3 Y 100 CARACTERES)."
     )
     identificacion: str = Field(
-        ...,
-        min_length=5,
-        max_length=20,
-        description="NÚMERO DE IDENTIFICACIÓN ÚNICO DEL USUARIO (SOLO DÍGITOS, ENTRE 5 Y 20 CARACTERES).",
-        examples=["123456789"]
+        default="string",
+        description="NÚMERO DE IDENTIFICACIÓN ÚNICO DEL USUARIO (SOLO DÍGITOS, ENTRE 5 Y 20 CARACTERES)."
     )
     nombreUsuario: str = Field(
-        ...,
-        min_length=3,
-        max_length=30,
-        description="NOMBRE DE USUARIO ÚNICO PARA INICIAR SESIÓN (LETRAS, NÚMEROS, PUNTO, GUION Y GUION BAJO).",
-        examples=["laura.gomez"]
+        default="string",
+        description="NOMBRE DE USUARIO ÚNICO PARA INICIAR SESIÓN (LETRAS, NÚMEROS, PUNTO, GUION Y GUION BAJO)."
     )
     estado: bool = Field(
         default=True,
@@ -118,13 +116,18 @@ class UsuarioActualizar(BaseModel):
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
-        extra="forbid"
+        extra="forbid",
+        validate_default=True
     )
 
     # VALIDAR QUE EL NOMBRE SOLO CONTENGA LETRAS Y ESPACIOS
     @field_validator("nombre")
     @classmethod
     def ValidarNombre(cls, valor):
+        if _EsValorPorDefecto(valor):
+            return "string"
+        if len(valor) < 3 or len(valor) > 100:
+            raise ValueError("EL NOMBRE DEBE TENER ENTRE 3 Y 100 CARACTERES.")
         if not re.fullmatch(r"[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+", valor):
             raise ValueError("EL NOMBRE SOLO DEBE CONTENER LETRAS Y ESPACIOS.")
         return valor
@@ -133,6 +136,10 @@ class UsuarioActualizar(BaseModel):
     @field_validator("identificacion")
     @classmethod
     def ValidarIdentificacion(cls, valor):
+        if _EsValorPorDefecto(valor):
+            return "string"
+        if len(valor) < 5 or len(valor) > 20:
+            raise ValueError("LA IDENTIFICACIÓN DEBE TENER ENTRE 5 Y 20 CARACTERES.")
         if not valor.isdigit():
             raise ValueError("LA IDENTIFICACIÓN SOLO DEBE CONTENER NÚMEROS.")
         return valor
@@ -141,34 +148,62 @@ class UsuarioActualizar(BaseModel):
     @field_validator("nombreUsuario")
     @classmethod
     def ValidarNombreUsuario(cls, valor):
+        if _EsValorPorDefecto(valor):
+            return "string"
+        if len(valor) < 3 or len(valor) > 30:
+            raise ValueError("EL NOMBRE DE USUARIO DEBE TENER ENTRE 3 Y 30 CARACTERES.")
         if not re.fullmatch(r"[a-zA-Z0-9_.-]+", valor):
             raise ValueError(
                 "EL NOMBRE DE USUARIO SOLO PUEDE CONTENER LETRAS, NÚMEROS, PUNTO, GUION Y GUION BAJO."
             )
         return valor
 
+    @model_validator(mode="after")
+    def ValidarAlMenosUnCampo(self):
+        if (
+            _EsValorPorDefecto(self.nombre)
+            and _EsValorPorDefecto(self.identificacion)
+            and _EsValorPorDefecto(self.nombreUsuario)
+            and "estado" not in self.model_fields_set
+        ):
+            raise ValueError("DEBE ENVIAR AL MENOS UN CAMPO VÁLIDO PARA ACTUALIZAR.")
+        return self
+
 
 # DTO PARA INICIAR SESION
 class UsuarioLogin(BaseModel):
     nombreUsuario: str = Field(
-        ...,
+        default="string",
         min_length=3,
         max_length=30,
-        description="NOMBRE DE USUARIO REGISTRADO EN EL SISTEMA.",
-        examples=["laura.gomez"]
+        description="NOMBRE DE USUARIO REGISTRADO EN EL SISTEMA."
     )
     contrasena: str = Field(
-        ...,
+        default="string",
         min_length=8,
         max_length=100,
-        description="CONTRASEÑA DE ACCESO DEL USUARIO.",
-        examples=["ClaveSegura123*"]
+        description="CONTRASEÑA DE ACCESO DEL USUARIO."
     )
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
-        extra="forbid"
+        extra="forbid",
+        validate_default=True
     )
+
+    @field_validator("nombreUsuario")
+    @classmethod
+    def ValidarNombreUsuario(cls, valor):
+        if _EsValorPorDefecto(valor):
+            raise ValueError("EL NOMBRE DE USUARIO NO PUEDE SER 'string'.")
+        return valor
+
+    @field_validator("contrasena")
+    @classmethod
+    def ValidarContrasena(cls, valor):
+        if _EsValorPorDefecto(valor):
+            raise ValueError("LA CONTRASEÑA NO PUEDE SER 'string'.")
+        return valor
 
 
 # DTO PARA CONSULTAR USUARIOS REGISTRADOS (SIN CONTRASEÑA NI DATOS SENSIBLES)

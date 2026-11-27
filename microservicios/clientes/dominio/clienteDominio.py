@@ -51,13 +51,20 @@ def ActualizarClienteDominio(id: int, datos_cliente: dict):
     if cliente_existente is None:
         raise LookupError("NO SE ENCONTRÓ EL CLIENTE SOLICITADO.")
 
-    # Verificar que la identificación no pertenezca a otro cliente
-    cliente_identificacion = clienteRepositorio.ObtenerClientePorIdentificacionRepositorio(
-        datos_cliente["identificacion"]
-    )
+    datos_filtrados = {
+        clave: valor
+        for clave, valor in datos_cliente.items()
+        if not (isinstance(valor, str) and valor.strip().lower() == "string")
+    }
 
-    if cliente_identificacion and cliente_identificacion["id"] != id:
-        raise ValueError("LA IDENTIFICACIÓN YA SE ENCUENTRA REGISTRADA.")
+    # Verificar que la identificación no pertenezca a otro cliente
+    if "identificacion" in datos_filtrados:
+        cliente_identificacion = clienteRepositorio.ObtenerClientePorIdentificacionRepositorio(
+            datos_filtrados["identificacion"]
+        )
+
+        if cliente_identificacion and cliente_identificacion["id"] != id:
+            raise ValueError("LA IDENTIFICACIÓN YA SE ENCUENTRA REGISTRADA.")
 
     # Actualizar el cliente
-    return clienteRepositorio.ActualizarClienteRepositorio(id, datos_cliente)
+    return clienteRepositorio.ActualizarClienteRepositorio(id, datos_filtrados)

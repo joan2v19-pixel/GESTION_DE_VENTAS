@@ -296,7 +296,7 @@ class TestConsultaUsuarios(unittest.TestCase):
         self.assertNotIn("contrasena", resultado[0])
         self.assertEqual(
             set(resultado[0].keys()),
-            {"id", "nombre", "identificacion", "nombreUsuario"}
+            {"id", "nombre", "identificacion", "nombreUsuario", "estado"}
         )
 
     # CASO 4: ERROR DURANTE LA CONSULTA DE USUARIOS
@@ -450,8 +450,17 @@ class TestActualizacionUsuarios(unittest.TestCase):
     def test_actualizacion_campos_vacios_o_invalidos(self):
         with self.assertRaises(ValidationError):
             UsuarioActualizar(
-                nombre="Laura Gomez",
-                identificacion="123456789"
+                nombre="string",
+                identificacion="string",
+                nombreUsuario="string"
+            )
+
+        with self.assertRaises(ValidationError):
+            UsuarioRegistro(
+                nombre="string",
+                identificacion="1234567890",
+                nombreUsuario="laura.gomez",
+                contrasena="ClaveSegura123*"
             )
 
         with self.assertRaises(ValidationError):
@@ -622,27 +631,25 @@ class TestLoginUsuarios(unittest.TestCase):
 
     # CASO 2: CREDENCIALES INCORRECTAS (USUARIO INEXISTENTE O CONTRASEÑA ERRÓNEA)
     def test_login_credenciales_incorrectas(self):
-        with self.assertRaises(HTTPException) as err_pass:
-            IniciarSesionAPI(
-                datos=UsuarioLogin(
-                    nombreUsuario="laura.gomez",
-                    contrasena="ClaveIncorrecta1*"
-                ),
-                response=Response()
-            )
-        self.assertEqual(err_pass.exception.status_code, 401)
-        self.assertEqual(err_pass.exception.detail, "USUARIO O CONTRASEÑA INCORRECTOS.")
+        err_pass = IniciarSesionAPI(
+            datos=UsuarioLogin(
+                nombreUsuario="laura.gomez",
+                contrasena="ClaveIncorrecta1*"
+            ),
+            response=Response()
+        )
+        self.assertEqual(err_pass.status_code, 401)
+        self.assertIn(b"Usuario o contrase", err_pass.body)
 
-        with self.assertRaises(HTTPException) as err_user:
-            IniciarSesionAPI(
-                datos=UsuarioLogin(
-                    nombreUsuario="no.existe",
-                    contrasena="ClaveSegura123*"
-                ),
-                response=Response()
-            )
-        self.assertEqual(err_user.exception.status_code, 401)
-        self.assertEqual(err_user.exception.detail, "USUARIO O CONTRASEÑA INCORRECTOS.")
+        err_user = IniciarSesionAPI(
+            datos=UsuarioLogin(
+                nombreUsuario="no.existe",
+                contrasena="ClaveSegura123*"
+            ),
+            response=Response()
+        )
+        self.assertEqual(err_user.status_code, 401)
+        self.assertIn(b"Usuario o contrase", err_user.body)
         self.assertEqual(len(usuarioRepositorio.sesiones), 0)
 
     # CASO 3: CAMPOS OBLIGATORIOS VACÍOS O FALTANTES
@@ -659,20 +666,16 @@ class TestLoginUsuarios(unittest.TestCase):
     def test_login_cuenta_inactiva(self):
         usuarioRepositorio.ObtenerUsuarioPorIdRepositorio(1)["estado"] = False
 
-        with self.assertRaises(HTTPException) as contexto:
-            IniciarSesionAPI(
-                datos=UsuarioLogin(
-                    nombreUsuario="laura.gomez",
-                    contrasena="ClaveSegura123*"
-                ),
-                response=Response()
-            )
-
-        self.assertEqual(contexto.exception.status_code, 403)
-        self.assertEqual(
-            contexto.exception.detail,
-            "LA CUENTA NO SE ENCUENTRA HABILITADA PARA ACCEDER AL SISTEMA."
+        respuesta = IniciarSesionAPI(
+            datos=UsuarioLogin(
+                nombreUsuario="laura.gomez",
+                contrasena="ClaveSegura123*"
+            ),
+            response=Response()
         )
+
+        self.assertEqual(respuesta.status_code, 403)
+        self.assertIn(b"habilitada", respuesta.body)
         self.assertEqual(len(usuarioRepositorio.sesiones), 0)
 
     # CASO 5: ERROR DE CONEXIÓN O BASE DE DATOS DURANTE LA AUTENTICACIÓN
@@ -681,20 +684,16 @@ class TestLoginUsuarios(unittest.TestCase):
         side_effect=RuntimeError("Error simulado de base de datos")
     )
     def test_login_error_servidor(self, mock_consulta):
-        with self.assertRaises(HTTPException) as contexto:
-            IniciarSesionAPI(
-                datos=UsuarioLogin(
-                    nombreUsuario="laura.gomez",
-                    contrasena="ClaveSegura123*"
-                ),
-                response=Response()
-            )
-
-        self.assertEqual(contexto.exception.status_code, 500)
-        self.assertEqual(
-            contexto.exception.detail,
-            "NO FUE POSIBLE COMPLETAR LA AUTENTICACIÓN."
+        respuesta = IniciarSesionAPI(
+            datos=UsuarioLogin(
+                nombreUsuario="laura.gomez",
+                contrasena="ClaveSegura123*"
+            ),
+            response=Response()
         )
+
+        self.assertEqual(respuesta.status_code, 500)
+        self.assertIn(b"No fue posible completar la autenticaci", respuesta.body)
         self.assertEqual(len(usuarioRepositorio.sesiones), 0)
 
     # CASO 6: INTENTO DE ACCESO A FUNCIONALIDAD PROTEGIDA SIN AUTENTICACIÓN

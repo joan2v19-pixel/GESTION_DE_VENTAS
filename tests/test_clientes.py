@@ -579,9 +579,18 @@ class TestActualizacionClientes(unittest.TestCase):
     def test_actualizacion_campos_obligatorios_vacios(self):
         with self.assertRaises(ValidationError):
             ClienteActualizar(
+                identificacion="string",
+                nombre="string",
+                telefono="string",
+                correo="string"
+            )
+
+        with self.assertRaises(ValidationError):
+            ClienteRegistro(
                 identificacion="1234567890",
-                nombre="Juan Pérez Gómez",
-                telefono="3007654321"
+                nombre="string",
+                telefono="3001234567",
+                correo="juan@example.com"
             )
 
         with self.assertRaises(ValidationError):

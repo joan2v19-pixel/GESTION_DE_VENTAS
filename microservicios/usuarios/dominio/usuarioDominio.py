@@ -47,23 +47,29 @@ def ActualizarUsuarioDominio(id_usuario: int, nuevos_datos: dict):
     if usuario_actual is None:
         raise LookupError("No se encontró el usuario solicitado")
 
+    datos_filtrados = {
+        clave: valor
+        for clave, valor in nuevos_datos.items()
+        if not (isinstance(valor, str) and valor.strip().lower() == "string")
+    }
+
     # VALIDAR IDENTIFICACIÓN DUPLICADA
-    if usuarioRepositorio.ExisteIdentificacionRepositorio(
-        nuevos_datos["identificacion"],
+    if "identificacion" in datos_filtrados and usuarioRepositorio.ExisteIdentificacionRepositorio(
+        datos_filtrados["identificacion"],
         id_usuario
     ):
         raise ValueError("La identificación ya está registrada")
 
     # VALIDAR NOMBRE DE USUARIO DUPLICADO
-    if usuarioRepositorio.ExisteNombreUsuarioRepositorio(
-        nuevos_datos["nombreUsuario"],
+    if "nombreUsuario" in datos_filtrados and usuarioRepositorio.ExisteNombreUsuarioRepositorio(
+        datos_filtrados["nombreUsuario"],
         id_usuario
     ):
         raise ValueError("El nombre de usuario ya existe")
 
     return usuarioRepositorio.ActualizarUsuarioRepositorio(
         id_usuario,
-        nuevos_datos
+        datos_filtrados
     )
 
 

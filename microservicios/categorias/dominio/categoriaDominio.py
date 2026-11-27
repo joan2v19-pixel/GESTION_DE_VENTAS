@@ -38,13 +38,20 @@ def ActualizarCategoriaDominio(id: int, datos_categoria: dict):
     if categoria_existente is None:
         raise LookupError("LA CATEGORÍA SELECCIONADA NO EXISTE.")
 
-    # Verificar que el nombre no pertenezca a otra categoría
-    categoria_nombre = categoriaRepositorio.ObtenerCategoriaPorNombreRepositorio(
-        datos_categoria["nombre"]
-    )
+    datos_filtrados = {
+        clave: valor
+        for clave, valor in datos_categoria.items()
+        if not (isinstance(valor, str) and valor.strip().lower() == "string")
+    }
 
-    if categoria_nombre and categoria_nombre["id"] != id:
-        raise ValueError("EL NOMBRE YA SE ENCUENTRA REGISTRADO EN OTRA CATEGORÍA.")
+    # Verificar que el nombre no pertenezca a otra categoría
+    if "nombre" in datos_filtrados:
+        categoria_nombre = categoriaRepositorio.ObtenerCategoriaPorNombreRepositorio(
+            datos_filtrados["nombre"]
+        )
+
+        if categoria_nombre and categoria_nombre["id"] != id:
+            raise ValueError("EL NOMBRE YA SE ENCUENTRA REGISTRADO EN OTRA CATEGORÍA.")
 
     # Actualizar la categoría
-    return categoriaRepositorio.ActualizarCategoriaRepositorio(id, datos_categoria)
+    return categoriaRepositorio.ActualizarCategoriaRepositorio(id, datos_filtrados)

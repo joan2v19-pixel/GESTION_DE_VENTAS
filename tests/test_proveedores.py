@@ -637,10 +637,20 @@ class TestActualizacionProveedores(unittest.TestCase):
     def test_actualizacion_campos_vacios_o_invalidos(self):
         with self.assertRaises(ValidationError):
             ProveedorActualizar(
+                identificacion="string",
+                nombre="string",
+                telefono="string",
+                correo="string",
+                direccion="string"
+            )
+
+        with self.assertRaises(ValidationError):
+            ProveedorRegistro(
                 identificacion="900123456",
-                nombre="Proveedor actualizado",
-                telefono="3009876543",
-                correo="contacto@proveedor.com"
+                nombre="string",
+                telefono="3001234567",
+                correo="contacto@proveedor.com",
+                direccion="Calle 10 # 20-30"
             )
 
         with self.assertRaises(ValidationError):

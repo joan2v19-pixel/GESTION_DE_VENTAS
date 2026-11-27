@@ -355,7 +355,14 @@ class TestActualizacionCategorias(unittest.TestCase):
     def test_actualizacion_campos_incompletos_o_invalidos(self):
         with self.assertRaises(ValidationError):
             CategoriaActualizar(
-                descripcion="Productos líquidos para consumo"
+                nombre="string",
+                descripcion="string"
+            )
+
+        with self.assertRaises(ValidationError):
+            CategoriaRegistro(
+                nombre="string",
+                descripcion="Categoría válida"
             )
 
         with self.assertRaises(ValidationError):
