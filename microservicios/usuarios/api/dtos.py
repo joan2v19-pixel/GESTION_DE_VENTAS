@@ -107,6 +107,14 @@ class UsuarioActualizar(BaseModel):
         description="NOMBRE DE USUARIO ÚNICO PARA INICIAR SESIÓN (LETRAS, NÚMEROS, PUNTO, GUION Y GUION BAJO).",
         examples=["laura.gomez"]
     )
+    estado: bool = Field(
+        default=True,
+        description=(
+            "ESTADO DE LA CUENTA: TRUE PARA ACTIVA Y FALSE PARA INACTIVA. "
+            "SI SE OMITE, SE CONSERVA EL ESTADO ACTUAL."
+        ),
+        examples=[True]
+    )
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
@@ -169,3 +177,4 @@ class UsuarioConsulta(BaseModel):
     nombre: str = Field(..., description="NOMBRE COMPLETO DEL USUARIO.", examples=["Joan Sierra"])
     identificacion: str = Field(..., description="NÚMERO DE IDENTIFICACIÓN DEL USUARIO.", examples=["1234567890"])
     nombreUsuario: str = Field(..., description="NOMBRE DE USUARIO PARA INICIAR SESIÓN.", examples=["Joan"])
+    estado: bool = Field(..., description="INDICA SI LA CUENTA ESTÁ ACTIVA.", examples=[True])

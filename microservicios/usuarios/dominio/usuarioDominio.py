@@ -78,7 +78,8 @@ def ConsultarUsuariosDominio():
             "id": usuario["id"],
             "nombre": usuario["nombre"],
             "identificacion": usuario["identificacion"],
-            "nombreUsuario": usuario["nombreUsuario"]
+            "nombreUsuario": usuario["nombreUsuario"],
+            "estado": usuario.get("estado", True)
         })
 
     return usuarios_consultados
