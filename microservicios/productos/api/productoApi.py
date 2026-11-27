@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Path, Query, status, Depends
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
+from fastapi.exceptions import RequestValidationError
 import re
 
 from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
@@ -11,10 +13,77 @@ from microservicios.productos.api.dtos import (
 from microservicios.productos.servicio import productoServicio
 
 
+class RutaValidacionProducto(APIRoute):
+    """Devuelve errores de validación de productos en español y con formato JSON estable."""
+
+    def get_route_handler(self):
+        manejador_original = super().get_route_handler()
+
+        async def manejar_validacion(request):
+            try:
+                return await manejador_original(request)
+            except RequestValidationError as error:
+                etiquetas = {
+                    "nombre": "nombre",
+                    "codigo": "código",
+                    "precio": "precio",
+                    "categoria_id": "categoría",
+                    "id": "identificador"
+                }
+                detalles = []
+                campos_faltantes = []
+
+                for detalle in error.errors():
+                    ubicacion = detalle.get("loc", ())
+                    campo = str(ubicacion[-1]) if ubicacion else "dato"
+                    etiqueta = etiquetas.get(campo, campo.replace("_", " "))
+                    tipo = detalle.get("type", "")
+                    minimo = detalle.get("ctx", {}).get("min_length")
+
+                    if tipo == "missing":
+                        campos_faltantes.append(etiqueta)
+                        mensaje = f"Debe completar el campo {etiqueta}."
+                    elif tipo == "string_too_short":
+                        mensaje = f"El campo {etiqueta} debe tener al menos {minimo} caracteres."
+                    elif tipo == "string_too_long":
+                        maximo = detalle.get("ctx", {}).get("max_length")
+                        mensaje = f"El campo {etiqueta} no puede superar {maximo} caracteres."
+                    elif tipo in {"float_parsing", "int_parsing", "int_type", "float_type"}:
+                        mensaje = f"El campo {etiqueta} debe tener un valor numérico válido."
+                    elif tipo == "greater_than":
+                        mensaje = f"El campo {etiqueta} debe ser mayor que cero."
+                    elif tipo == "extra_forbidden":
+                        mensaje = f"El campo {etiqueta} no está permitido."
+                    else:
+                        mensaje = detalle.get("msg", f"El campo {etiqueta} no es válido.")
+                        if mensaje.lower().startswith("value error, "):
+                            mensaje = mensaje[len("value error, "):]
+
+                    detalles.append({"campo": etiqueta, "mensaje": mensaje})
+
+                if campos_faltantes:
+                    faltantes = ", ".join(dict.fromkeys(campos_faltantes))
+                    resumen = f"Faltan campos obligatorios: {faltantes}."
+                else:
+                    resumen = "Los datos ingresados no son válidos. Verifique los campos indicados."
+
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "message": resumen,
+                        "success": False,
+                        "errors": detalles
+                    }
+                )
+
+        return manejar_validacion
+
+
 # CONFIGURAR EL ROUTER DEL MICROSERVICIO DE PRODUCTOS
 router = APIRouter(
     prefix="/api/v1/productos",
-    tags=["Gestión de productos"]
+    tags=["Gestión de productos"],
+    route_class=RutaValidacionProducto
 )
 
 
@@ -156,6 +225,41 @@ def ConsultarProductosAPI(
                     "example": {
                         "message": "El código del producto ya se encuentra registrado",
                         "success": False
+                    }
+                }
+            }
+        },
+        422: {
+            "description": "Datos obligatorios incompletos o inválidos",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "campo_vacio": {
+                            "summary": "Campo nombre vacío",
+                            "value": {
+                                "message": "Los datos ingresados no son válidos. Verifique los campos indicados.",
+                                "success": False,
+                                "errors": [
+                                    {
+                                        "campo": "nombre",
+                                        "mensaje": "El campo nombre debe tener al menos 2 caracteres."
+                                    }
+                                ]
+                            }
+                        },
+                        "campo_faltante": {
+                            "summary": "Falta un campo obligatorio",
+                            "value": {
+                                "message": "Faltan campos obligatorios: nombre.",
+                                "success": False,
+                                "errors": [
+                                    {
+                                        "campo": "nombre",
+                                        "mensaje": "Debe completar el campo nombre."
+                                    }
+                                ]
+                            }
+                        }
                     }
                 }
             }
@@ -539,6 +643,23 @@ def ObtenerProductoPorIdAPI(
                     "example": {
                         "message": "El código del producto ya se encuentra registrado en otro producto",
                         "success": False
+                    }
+                }
+            }
+        },
+        422: {
+            "description": "Datos del producto incompletos o inválidos",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Faltan campos obligatorios: código.",
+                        "success": False,
+                        "errors": [
+                            {
+                                "campo": "código",
+                                "mensaje": "Debe completar el campo código."
+                            }
+                        ]
                     }
                 }
             }

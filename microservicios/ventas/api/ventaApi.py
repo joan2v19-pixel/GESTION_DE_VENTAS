@@ -1,6 +1,8 @@
 from datetime import datetime
 from fastapi import APIRouter, Body, Path, Query, status, Depends
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
+from fastapi.exceptions import RequestValidationError
 
 from microservicios.productos.api.dtos import PALABRAS_PROHIBIDAS
 from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
@@ -14,10 +16,84 @@ from microservicios.ventas.api.dtos import (
 from microservicios.ventas.servicio import ventaServicio
 
 
+class RutaValidacionVenta(APIRoute):
+    """Devuelve los errores de entrada de ventas en español y en un JSON legible."""
+
+    def get_route_handler(self):
+        manejador_original = super().get_route_handler()
+
+        async def manejar_validacion(request):
+            try:
+                return await manejador_original(request)
+            except RequestValidationError as error:
+                campos = {
+                    "cliente_id": "cliente",
+                    "venta_id": "venta",
+                    "producto_id": "producto",
+                    "cantidad": "cantidad"
+                }
+                errores = []
+                falta_cliente = False
+                json_invalido = False
+
+                for detalle in error.errors():
+                    tipo = detalle.get("type", "")
+                    ubicacion = detalle.get("loc", ())
+                    campo = str(ubicacion[-1]) if ubicacion else "solicitud"
+
+                    if tipo == "json_invalid":
+                        json_invalido = True
+                        errores.append({
+                            "campo": "solicitud",
+                            "mensaje": "El cuerpo debe tener un formato JSON válido."
+                        })
+                        continue
+
+                    etiqueta = campos.get(campo, campo.replace("_", " "))
+                    if tipo == "missing" and campo == "cliente_id":
+                        falta_cliente = True
+                        mensaje = "Debe seleccionar un cliente registrado para iniciar la venta."
+                    elif tipo == "missing":
+                        mensaje = f"Debe completar el campo {etiqueta}."
+                    elif tipo == "greater_than":
+                        mensaje = f"El campo {etiqueta} debe ser mayor que cero."
+                    elif tipo in {"int_parsing", "int_type"}:
+                        mensaje = f"El campo {etiqueta} debe ser un número entero válido."
+                    elif tipo == "extra_forbidden":
+                        mensaje = f"El campo {etiqueta} no está permitido."
+                    else:
+                        mensaje = detalle.get("msg", f"El campo {etiqueta} no es válido.")
+                        if mensaje.lower().startswith("value error, "):
+                            mensaje = mensaje[len("value error, "):]
+                        if campo == "cliente_id":
+                            mensaje = "El cliente es obligatorio y debe tener un identificador entero positivo."
+
+                    errores.append({"campo": etiqueta, "mensaje": mensaje})
+
+                if falta_cliente:
+                    mensaje = "El cliente es obligatorio. Seleccione un cliente para continuar."
+                elif json_invalido:
+                    mensaje = "Envíe un JSON válido con el identificador del cliente seleccionado."
+                else:
+                    mensaje = "Los datos de la venta no son válidos. Verifique los campos indicados."
+
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "message": mensaje,
+                        "success": False,
+                        "errors": errores
+                    }
+                )
+
+        return manejar_validacion
+
+
 # CONFIGURAR EL ROUTER DEL MICROSERVICIO DE VENTAS
 router = APIRouter(
     prefix="/api/v1/ventas",
-    tags=["Gestión de ventas"]
+    tags=["Gestión de ventas"],
+    route_class=RutaValidacionVenta
 )
 
 
@@ -246,6 +322,41 @@ def ConsultarVentasAPI(
                     "example": {
                         "message": "El cliente seleccionado no existe",
                         "success": False
+                    }
+                }
+            }
+        },
+        422: {
+            "description": "Falta el cliente o los datos de la solicitud son inválidos",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "cliente_faltante": {
+                            "summary": "No se seleccionó un cliente",
+                            "value": {
+                                "message": "El cliente es obligatorio. Seleccione un cliente para continuar.",
+                                "success": False,
+                                "errors": [
+                                    {
+                                        "campo": "cliente",
+                                        "mensaje": "Debe seleccionar un cliente registrado para iniciar la venta."
+                                    }
+                                ]
+                            }
+                        },
+                        "json_invalido": {
+                            "summary": "Solicitud con JSON mal formado",
+                            "value": {
+                                "message": "Envíe un JSON válido con el identificador del cliente seleccionado.",
+                                "success": False,
+                                "errors": [
+                                    {
+                                        "campo": "solicitud",
+                                        "mensaje": "El cuerpo debe tener un formato JSON válido."
+                                    }
+                                ]
+                            }
+                        }
                     }
                 }
             }
