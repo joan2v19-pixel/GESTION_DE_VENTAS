@@ -412,7 +412,11 @@ def ConsultarUsuariosAPI(
             "description": "Credenciales incorrectas",
             "content": {
                 "application/json": {
-                    "example": {"detail": "USUARIO O CONTRASEÑA INCORRECTOS."}
+                    "example": {
+                        "message": "Usuario o contraseña incorrectos",
+                        "success": False,
+                        "data": None
+                    }
                 }
             }
         },
@@ -420,7 +424,11 @@ def ConsultarUsuariosAPI(
             "description": "Cuenta inactiva o sin autorización para acceder",
             "content": {
                 "application/json": {
-                    "example": {"detail": "LA CUENTA NO SE ENCUENTRA HABILITADA PARA ACCEDER AL SISTEMA."}
+                    "example": {
+                        "message": "La cuenta no se encuentra habilitada para acceder al sistema",
+                        "success": False,
+                        "data": None
+                    }
                 }
             }
         },
@@ -428,7 +436,11 @@ def ConsultarUsuariosAPI(
             "description": "Error interno durante la autenticación",
             "content": {
                 "application/json": {
-                    "example": {"detail": "NO FUE POSIBLE COMPLETAR LA AUTENTICACIÓN."}
+                    "example": {
+                        "message": "No fue posible completar la autenticación",
+                        "success": False,
+                        "data": None
+                    }
                 }
             }
         }
@@ -464,21 +476,33 @@ def IniciarSesionAPI(
         }
 
     except PermissionError:
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="LA CUENTA NO SE ENCUENTRA HABILITADA PARA ACCEDER AL SISTEMA."
+            content={
+                "message": "La cuenta no se encuentra habilitada para acceder al sistema",
+                "success": False,
+                "data": None
+            }
         )
 
     except ValueError:
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="USUARIO O CONTRASEÑA INCORRECTOS."
+            content={
+                "message": "Usuario o contraseña incorrectos",
+                "success": False,
+                "data": None
+            }
         )
 
     except Exception:
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="NO FUE POSIBLE COMPLETAR LA AUTENTICACIÓN."
+            content={
+                "message": "No fue posible completar la autenticación",
+                "success": False,
+                "data": None
+            }
         )
 
 
