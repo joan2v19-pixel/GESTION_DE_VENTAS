@@ -192,8 +192,9 @@ def RegistrarUsuarioAPI(
     summary="Actualizar información de un usuario",
     description=(
         "Permite al superadministrador modificar los datos de un usuario existente "
-        "identificado por su ID, validando formatos y unicidad sin exponer ni alterar "
-        "la contraseña en texto plano."
+        "identificado por su ID, incluyendo la activación o inactivación de la cuenta. "
+        "Si se omite el campo estado, se conserva el valor actual. Valida formatos y "
+        "unicidad sin exponer ni alterar la contraseña."
     ),
     responses={
         200: {
@@ -206,7 +207,8 @@ def RegistrarUsuarioAPI(
                             "id": 1,
                             "nombre": "Laura Gomez",
                             "identificacion": "123456789",
-                            "nombreUsuario": "laura.gomez"
+                            "nombreUsuario": "laura.gomez",
+                            "estado": True
                         },
                         "success": True
                     }
@@ -265,7 +267,7 @@ def ActualizarUsuarioAPI(
         # ACTUALIZAR LA INFORMACIÓN DEL USUARIO
         usuario_actualizado = usuarioServicio.ActualizarUsuarioServicio(
             id_usuario,
-            datos.model_dump()
+            datos.model_dump(exclude_unset=True)
         )
 
         # DEVOLVER LA INFORMACIÓN ACTUALIZADA SIN CONTRASEÑA
@@ -275,7 +277,8 @@ def ActualizarUsuarioAPI(
                 "id": usuario_actualizado["id"],
                 "nombre": usuario_actualizado["nombre"],
                 "identificacion": usuario_actualizado["identificacion"],
-                "nombreUsuario": usuario_actualizado["nombreUsuario"]
+                "nombreUsuario": usuario_actualizado["nombreUsuario"],
+                "estado": usuario_actualizado.get("estado", True)
             },
             "success": True
         }
@@ -322,7 +325,8 @@ def ActualizarUsuarioAPI(
                                     "id": 1,
                                     "nombre": "Joan Sierra",
                                     "identificacion": "1234567890",
-                                    "nombreUsuario": "Joan"
+                                    "nombreUsuario": "Joan",
+                                    "estado": True
                                 }
                             ]
                         },
