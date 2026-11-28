@@ -72,7 +72,7 @@ class RutaValidacionProducto(APIRoute):
                     content={
                         "message": resumen,
                         "success": False,
-                        "errors": detalles
+                        "data": None
                     }
                 )
 
@@ -300,6 +300,7 @@ def RegistrarProductoAPI(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -310,6 +311,7 @@ def RegistrarProductoAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -320,6 +322,7 @@ def RegistrarProductoAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible registrar el producto",
+                "data": None,
                 "success": False
             }
         )
@@ -563,6 +566,7 @@ def ObtenerProductoPorIdAPI(
                 status_code=status.HTTP_404_NOT_FOUND,
                 content={
                     "message": "No se encontró el producto solicitado",
+                    "data": None,
                     "success": False
                 }
             )
@@ -578,6 +582,7 @@ def ObtenerProductoPorIdAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible consultar el producto",
+                "data": None,
                 "success": False
             }
         )
@@ -702,6 +707,7 @@ def ActualizarProductoAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -712,6 +718,7 @@ def ActualizarProductoAPI(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -722,6 +729,7 @@ def ActualizarProductoAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible actualizar el producto",
+                "data": None,
                 "success": False
             }
         )

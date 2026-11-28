@@ -154,6 +154,7 @@ def GenerarComprobanteAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -163,6 +164,7 @@ def GenerarComprobanteAPI(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -172,6 +174,7 @@ def GenerarComprobanteAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible generar el comprobante",
+                "data": None,
                 "success": False
             }
         )
@@ -255,6 +258,7 @@ def ObtenerComprobantePorIdAPI(
                 status_code=status.HTTP_404_NOT_FOUND,
                 content={
                     "message": "No se encontró el comprobante solicitado",
+                    "data": None,
                     "success": False
                 }
             )
@@ -270,6 +274,7 @@ def ObtenerComprobantePorIdAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -279,6 +284,7 @@ def ObtenerComprobantePorIdAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible consultar el comprobante",
+                "data": None,
                 "success": False
             }
         )

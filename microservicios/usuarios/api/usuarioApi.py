@@ -273,7 +273,7 @@ def ActualizarUsuarioAPI(
         # DEVOLVER LA INFORMACIÓN ACTUALIZADA SIN CONTRASEÑA
         return {
             "message": "LA INFORMACIÓN DEL USUARIO SE ACTUALIZÓ CORRECTAMENTE.",
-            "usuario": {
+            "data": {
                 "id": usuario_actualizado["id"],
                 "nombre": usuario_actualizado["nombre"],
                 "identificacion": usuario_actualizado["identificacion"],
@@ -305,7 +305,6 @@ def ActualizarUsuarioAPI(
 # ENDPOINT PARA CONSULTAR TODOS LOS USUARIOS
 @router.get(
     "/",
-    response_model=list[UsuarioConsulta],
     status_code=status.HTTP_200_OK,
     summary="Consultar y listar usuarios",
     description=(
@@ -372,7 +371,18 @@ def ConsultarUsuariosAPI(
         # CONSULTAR LOS USUARIOS REGISTRADOS
         usuarios = usuarioServicio.ConsultarUsuariosServicio()
 
-        return usuarios
+        if not usuarios:
+            return {
+                "message": "NO EXISTEN USUARIOS REGISTRADOS.",
+                "data": [],
+                "success": True
+            }
+
+        return {
+            "message": "CONSULTA DE USUARIOS EXITOSA.",
+            "data": usuarios,
+            "success": True
+        }
 
     except Exception:
         raise HTTPException(
@@ -513,9 +523,9 @@ def ConsultarSesionAPI(
 ):
 
     return {
-        "mensaje": "SESIÓN ACTIVA.",
-        "success": True,
-        "data": usuario
+        "message": "SESIÓN ACTIVA.",
+        "data": usuario,
+        "success": True
     }
 
 
@@ -575,6 +585,7 @@ def CerrarSesionAPI(
 
         return {
             "message": "Sesión cerrada correctamente",
+            "data": None,
             "success": True
         }
 
@@ -583,6 +594,7 @@ def CerrarSesionAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible cerrar la sesión",
+                "data": None,
                 "success": False
             }
         )

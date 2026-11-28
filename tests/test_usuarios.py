@@ -67,9 +67,10 @@ class TestRegistroUsuarios(unittest.TestCase):
 
         # VERIFICAR QUE EL USUARIO PUEDE CONSULTARSE POSTERIORMENTE
         consulta = ConsultarUsuariosAPI(self.superadministrador)
-        self.assertEqual(len(consulta), 1)
-        self.assertEqual(consulta[0]["nombreUsuario"], "Joan")
-        self.assertNotIn("contrasena", consulta[0])
+        self.assertTrue(consulta["success"])
+        self.assertEqual(len(consulta["data"]), 1)
+        self.assertEqual(consulta["data"][0]["nombreUsuario"], "Joan")
+        self.assertNotIn("contrasena", consulta["data"][0])
 
     # CASO 2: REGISTRO CON CAMPOS OBLIGATORIOS VACÍOS O FALTANTES
     def test_registro_campos_obligatorios_vacios_o_faltantes(self):
@@ -254,11 +255,12 @@ class TestConsultaUsuarios(unittest.TestCase):
         )
 
         resultado = ConsultarUsuariosAPI(self.superadministrador)
-        self.assertEqual(len(resultado), 2)
-        self.assertEqual(resultado[0]["nombre"], "Laura Gomez")
-        self.assertEqual(resultado[0]["identificacion"], "123456789")
-        self.assertEqual(resultado[0]["nombreUsuario"], "laura.gomez")
-        self.assertEqual(resultado[1]["nombreUsuario"], "carlos.perez")
+        self.assertTrue(resultado["success"])
+        self.assertEqual(len(resultado["data"]), 2)
+        self.assertEqual(resultado["data"][0]["nombre"], "Laura Gomez")
+        self.assertEqual(resultado["data"][0]["identificacion"], "123456789")
+        self.assertEqual(resultado["data"][0]["nombreUsuario"], "laura.gomez")
+        self.assertEqual(resultado["data"][1]["nombreUsuario"], "carlos.perez")
 
         # VERIFICAR QUE AL REGISTRAR OTRO USUARIO, LA NUEVA CONSULTA LO REFLEJA
         RegistrarUsuarioAPI(
@@ -271,13 +273,14 @@ class TestConsultaUsuarios(unittest.TestCase):
             self.superadministrador
         )
         actualizado = ConsultarUsuariosAPI(self.superadministrador)
-        self.assertEqual(len(actualizado), 3)
-        self.assertEqual(actualizado[2]["nombreUsuario"], "ana.ruiz")
+        self.assertEqual(len(actualizado["data"]), 3)
+        self.assertEqual(actualizado["data"][2]["nombreUsuario"], "ana.ruiz")
 
     # CASO 2: CONSULTAR CUANDO NO EXISTEN USUARIOS REGISTRADOS
     def test_consulta_listado_vacio(self):
         resultado = ConsultarUsuariosAPI(self.superadministrador)
-        self.assertEqual(resultado, [])
+        self.assertTrue(resultado["success"])
+        self.assertEqual(resultado["data"], [])
 
     # CASO 3: VERIFICAR QUE NO SE EXPONEN CONTRASEÑAS NI HASHES
     def test_consulta_no_expone_contrasenas(self):
@@ -292,10 +295,10 @@ class TestConsultaUsuarios(unittest.TestCase):
         )
 
         resultado = ConsultarUsuariosAPI(self.superadministrador)
-        self.assertEqual(len(resultado), 1)
-        self.assertNotIn("contrasena", resultado[0])
+        self.assertEqual(len(resultado["data"]), 1)
+        self.assertNotIn("contrasena", resultado["data"][0])
         self.assertEqual(
-            set(resultado[0].keys()),
+            set(resultado["data"][0].keys()),
             {"id", "nombre", "identificacion", "nombreUsuario", "estado"}
         )
 
@@ -416,10 +419,10 @@ class TestActualizacionUsuarios(unittest.TestCase):
             respuesta["message"],
             "LA INFORMACIÓN DEL USUARIO SE ACTUALIZÓ CORRECTAMENTE."
         )
-        self.assertEqual(respuesta["usuario"]["id"], 1)
-        self.assertEqual(respuesta["usuario"]["nombre"], "Laura Maria Gomez")
-        self.assertEqual(respuesta["usuario"]["nombreUsuario"], "laura.mgomez")
-        self.assertNotIn("contrasena", respuesta["usuario"])
+        self.assertEqual(respuesta["data"]["id"], 1)
+        self.assertEqual(respuesta["data"]["nombre"], "Laura Maria Gomez")
+        self.assertEqual(respuesta["data"]["nombreUsuario"], "laura.mgomez")
+        self.assertNotIn("contrasena", respuesta["data"])
 
         almacenado = usuarioRepositorio.ObtenerUsuarioPorIdRepositorio(1)
         self.assertEqual(almacenado["nombre"], "Laura Maria Gomez")

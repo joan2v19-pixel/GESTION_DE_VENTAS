@@ -88,6 +88,7 @@ def RegistrarExistenciasInicialesAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -98,6 +99,7 @@ def RegistrarExistenciasInicialesAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible registrar las existencias iniciales",
+                "data": None,
                 "success": False
             }
         )
@@ -201,6 +203,7 @@ def ConsultarExistenciasProductoAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -211,6 +214,7 @@ def ConsultarExistenciasProductoAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible consultar las existencias del producto",
+                "data": None,
                 "success": False
             }
         )
@@ -333,6 +337,7 @@ def ValidarDisponibilidadAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -343,6 +348,7 @@ def ValidarDisponibilidadAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible validar la disponibilidad de los productos",
+                "data": None,
                 "success": False
             }
         )

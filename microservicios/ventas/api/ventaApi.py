@@ -82,7 +82,7 @@ class RutaValidacionVenta(APIRoute):
                     content={
                         "message": mensaje,
                         "success": False,
-                        "errors": errores
+                        "data": None
                     }
                 )
 
@@ -391,6 +391,7 @@ def RegistrarVentaAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -400,6 +401,7 @@ def RegistrarVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible registrar la venta",
+                "data": None,
                 "success": False
             }
         )
@@ -485,6 +487,7 @@ def ObtenerVentaPorIdAPI(
                 status_code=status.HTTP_404_NOT_FOUND,
                 content={
                     "message": "No se encontró la venta solicitada",
+                    "data": None,
                     "success": False
                 }
             )
@@ -500,6 +503,7 @@ def ObtenerVentaPorIdAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible consultar la venta",
+                "data": None,
                 "success": False
             }
         )
@@ -636,6 +640,7 @@ def AgregarDetalleVentaAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -645,6 +650,7 @@ def AgregarDetalleVentaAPI(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -654,6 +660,7 @@ def AgregarDetalleVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible agregar el producto al detalle de la venta",
+                "data": None,
                 "success": False
             }
         )
@@ -689,6 +696,7 @@ def ActualizarDetalleVentaAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -698,6 +706,7 @@ def ActualizarDetalleVentaAPI(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -707,6 +716,7 @@ def ActualizarDetalleVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible actualizar la cantidad del producto",
+                "data": None,
                 "success": False
             }
         )
@@ -740,6 +750,7 @@ def EliminarDetalleVentaAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -749,6 +760,7 @@ def EliminarDetalleVentaAPI(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -758,6 +770,7 @@ def EliminarDetalleVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible retirar el producto del detalle de la venta",
+                "data": None,
                 "success": False
             }
         )
@@ -870,6 +883,7 @@ def CalcularTotalesVentaAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -879,6 +893,7 @@ def CalcularTotalesVentaAPI(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -888,6 +903,7 @@ def CalcularTotalesVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible calcular los totales de la venta",
+                "data": None,
                 "success": False
             }
         )
@@ -1027,6 +1043,7 @@ def ValidarInventarioVentaAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -1036,6 +1053,7 @@ def ValidarInventarioVentaAPI(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -1045,6 +1063,7 @@ def ValidarInventarioVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible validar la disponibilidad del inventario",
+                "data": None,
                 "success": False
             }
         )
@@ -1160,6 +1179,7 @@ def ConfirmarVentaAPI(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "message": "Debe confirmar la operación enviando confirmar en true",
+                "data": None,
                 "success": False
             }
         )
@@ -1170,6 +1190,7 @@ def ConfirmarVentaAPI(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "message": "El identificador de la venta en la solicitud no coincide con el de la ruta",
+                "data": None,
                 "success": False
             }
         )
@@ -1190,6 +1211,7 @@ def ConfirmarVentaAPI(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -1200,6 +1222,7 @@ def ConfirmarVentaAPI(
             status_code=status.HTTP_409_CONFLICT,
             content={
                 "message": str(error),
+                "data": None,
                 "success": False
             }
         )
@@ -1210,6 +1233,7 @@ def ConfirmarVentaAPI(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "message": "No fue posible confirmar la venta y actualizar el inventario",
+                "data": None,
                 "success": False
             }
         )

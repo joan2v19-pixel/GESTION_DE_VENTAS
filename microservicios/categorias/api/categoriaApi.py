@@ -307,13 +307,14 @@ def ActualizarCategoriaAPI(
     usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
 ):
     try:
-        categoriaServicio.ActualizarCategoriaServicio(
+        categoria = categoriaServicio.ActualizarCategoriaServicio(
             id,
             datos.model_dump()
         )
 
         return {
             "message": "CATEGORÍA ACTUALIZADA CORRECTAMENTE.",
+            "data": categoria,
             "success": True
         }
 

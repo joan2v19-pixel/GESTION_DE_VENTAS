@@ -2,10 +2,10 @@
 from microservicios.categorias.repositorio import categoriaRepositorio
 
 
-# Registrar una categoría
+# REGISTRAR UNA CATEGORÍA
 def RegistrarCategoriaDominio(datos_categoria: dict):
 
-    # Verificar si ya existe una categoría con el mismo nombre
+    # VERIFICAR SI YA EXISTE UNA CATEGORÍA CON EL MISMO NOMBRE
     categoria_existente = categoriaRepositorio.ObtenerCategoriaPorNombreRepositorio(
         datos_categoria["nombre"]
     )
@@ -13,38 +13,39 @@ def RegistrarCategoriaDominio(datos_categoria: dict):
     if categoria_existente:
         raise ValueError("LA CATEGORÍA YA SE ENCUENTRA REGISTRADA.")
 
-    # Registrar la categoría
+    # REGISTRAR LA CATEGORÍA
     return categoriaRepositorio.RegistrarCategoriaRepositorio(datos_categoria)
 
 
 
-# Consultar todas las categorías
+# CONSULTAR TODAS LAS CATEGORÍAS
 def ConsultarCategoriasDominio():
     return categoriaRepositorio.ConsultarCategoriasRepositorio()
 
 
-# Consultar una categoría por ID
+# CONSULTAR UNA CATEGORÍA POR ID
 def ObtenerCategoriaPorIdDominio(id: int):
     return categoriaRepositorio.ObtenerCategoriaPorIdRepositorio(id)
 
 
 
-# Actualizar una categoría
+# ACTUALIZAR UNA CATEGORÍA
 def ActualizarCategoriaDominio(id: int, datos_categoria: dict):
 
-    # Verificar que la categoría exista
+    # VERIFICAR QUE LA CATEGORÍA EXISTA
     categoria_existente = categoriaRepositorio.ObtenerCategoriaPorIdRepositorio(id)
 
     if categoria_existente is None:
         raise LookupError("LA CATEGORÍA SELECCIONADA NO EXISTE.")
 
+    # FILTRAR CAMPOS CON VALOR POR DEFECTO 'string' PARA NO MODIFICARLOS
     datos_filtrados = {
         clave: valor
         for clave, valor in datos_categoria.items()
         if not (isinstance(valor, str) and valor.strip().lower() == "string")
     }
 
-    # Verificar que el nombre no pertenezca a otra categoría
+    # VERIFICAR QUE EL NOMBRE NO PERTENEZCA A OTRA CATEGORÍA
     if "nombre" in datos_filtrados:
         categoria_nombre = categoriaRepositorio.ObtenerCategoriaPorNombreRepositorio(
             datos_filtrados["nombre"]
@@ -53,5 +54,5 @@ def ActualizarCategoriaDominio(id: int, datos_categoria: dict):
         if categoria_nombre and categoria_nombre["id"] != id:
             raise ValueError("EL NOMBRE YA SE ENCUENTRA REGISTRADO EN OTRA CATEGORÍA.")
 
-    # Actualizar la categoría
+    # ACTUALIZAR LA CATEGORÍA
     return categoriaRepositorio.ActualizarCategoriaRepositorio(id, datos_filtrados)
