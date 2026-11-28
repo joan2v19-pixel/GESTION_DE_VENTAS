@@ -1,0 +1,69 @@
+from microservicios.ventas.dominio import ventaDominio
+
+
+# SERVICIO PARA REGISTRAR UNA VENTA EN ESTADO PENDIENTE
+def RegistrarVentaServicio(datos_venta: dict) -> dict:
+    return ventaDominio.RegistrarVentaDominio(datos_venta)
+
+
+# SERVICIO PARA CONSULTAR TODAS LAS VENTAS CON FILTROS OPCIONALES
+def ConsultarVentasServicio(
+    numero_venta: int | None = None,
+    cliente: str | None = None,
+    fecha: str | None = None
+) -> list[dict]:
+    return ventaDominio.ConsultarVentasDominio(numero_venta, cliente, fecha)
+
+
+# SERVICIO PARA CONSULTAR UNA VENTA POR ID
+def ObtenerVentaPorIdServicio(venta_id: int) -> dict | None:
+    return ventaDominio.ObtenerVentaPorIdDominio(venta_id)
+
+
+# SERVICIO PARA CONFIRMAR UNA VENTA Y DESCONTAR EXISTENCIAS
+def ConfirmarVentaServicio(venta_id: int) -> dict:
+    return ventaDominio.ConfirmarVentaDominio(venta_id)
+
+
+# SERVICIO PARA AGREGAR UN PRODUCTO AL DETALLE DE UNA VENTA
+def AgregarDetalleVentaServicio(venta_id: int, datos_detalle: dict) -> dict:
+    return ventaDominio.AgregarDetalleVentaDominio(venta_id, datos_detalle)
+
+
+# SERVICIO PARA CONSULTAR EL DETALLE DE UNA VENTA
+def ConsultarDetalleVentaServicio(venta_id: int) -> list[dict]:
+    return ventaDominio.ConsultarDetalleVentaDominio(venta_id)
+
+
+# SERVICIO PARA MODIFICAR LA CANTIDAD DE UN PRODUCTO EN EL DETALLE
+def ActualizarDetalleVentaServicio(
+    venta_id: int,
+    producto_id: int,
+    nueva_cantidad: int
+) -> dict:
+    return ventaDominio.ActualizarDetalleVentaDominio(
+        venta_id,
+        producto_id,
+        nueva_cantidad
+    )
+
+
+# SERVICIO PARA RETIRAR UN PRODUCTO DEL DETALLE DE UNA VENTA
+def EliminarDetalleVentaServicio(venta_id: int, producto_id: int) -> dict:
+    return ventaDominio.EliminarDetalleVentaDominio(venta_id, producto_id)
+
+
+# SERVICIO PARA CALCULAR SUBTOTALES Y TOTAL DE UNA VENTA
+def CalcularTotalesVentaServicio(venta_id: int) -> dict:
+    return ventaDominio.CalcularTotalesVentaDominio(venta_id)
+
+
+# SERVICIO PARA VALIDAR LA DISPONIBILIDAD DE INVENTARIO DE UNA VENTA
+def ValidarInventarioVentaServicio(
+    venta_id: int,
+    productos_solicitud: list[dict] | None = None
+) -> dict:
+    return ventaDominio.ValidarInventarioVentaDominio(
+        venta_id,
+        productos_solicitud
+    )

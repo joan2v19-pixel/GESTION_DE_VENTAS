@@ -1,0 +1,1239 @@
+from datetime import datetime
+from fastapi import APIRouter, Body, Path, Query, status, Depends
+from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
+from fastapi.exceptions import RequestValidationError
+
+from microservicios.productos.api.dtos import PALABRAS_PROHIBIDAS
+from microservicios.usuarios.api.usuarioApi import ObtenerSuperadministrador
+from microservicios.ventas.api.dtos import (
+    ConfirmarVentaSolicitud,
+    DetalleVentaActualizar,
+    DetalleVentaAgregar,
+    ValidarInventarioVentaSolicitud,
+    VentaRegistro
+)
+from microservicios.ventas.servicio import ventaServicio
+
+
+class RutaValidacionVenta(APIRoute):
+    """Devuelve los errores de entrada de ventas en español y en un JSON legible."""
+
+    def get_route_handler(self):
+        manejador_original = super().get_route_handler()
+
+        async def manejar_validacion(request):
+            try:
+                return await manejador_original(request)
+            except RequestValidationError as error:
+                campos = {
+                    "cliente_id": "cliente",
+                    "venta_id": "venta",
+                    "producto_id": "producto",
+                    "cantidad": "cantidad"
+                }
+                errores = []
+                falta_cliente = False
+                json_invalido = False
+
+                for detalle in error.errors():
+                    tipo = detalle.get("type", "")
+                    ubicacion = detalle.get("loc", ())
+                    campo = str(ubicacion[-1]) if ubicacion else "solicitud"
+
+                    if tipo == "json_invalid":
+                        json_invalido = True
+                        errores.append({
+                            "campo": "solicitud",
+                            "mensaje": "El cuerpo debe tener un formato JSON válido."
+                        })
+                        continue
+
+                    etiqueta = campos.get(campo, campo.replace("_", " "))
+                    if tipo == "missing" and campo == "cliente_id":
+                        falta_cliente = True
+                        mensaje = "Debe seleccionar un cliente registrado para iniciar la venta."
+                    elif tipo == "missing":
+                        mensaje = f"Debe completar el campo {etiqueta}."
+                    elif tipo == "greater_than":
+                        mensaje = f"El campo {etiqueta} debe ser mayor que cero."
+                    elif tipo in {"int_parsing", "int_type"}:
+                        mensaje = f"El campo {etiqueta} debe ser un número entero válido."
+                    elif tipo == "extra_forbidden":
+                        mensaje = f"El campo {etiqueta} no está permitido."
+                    else:
+                        mensaje = detalle.get("msg", f"El campo {etiqueta} no es válido.")
+                        if mensaje.lower().startswith("value error, "):
+                            mensaje = mensaje[len("value error, "):]
+                        if campo == "cliente_id":
+                            mensaje = "El cliente es obligatorio y debe tener un identificador entero positivo."
+
+                    errores.append({"campo": etiqueta, "mensaje": mensaje})
+
+                if falta_cliente:
+                    mensaje = "El cliente es obligatorio. Seleccione un cliente para continuar."
+                elif json_invalido:
+                    mensaje = "Envíe un JSON válido con el identificador del cliente seleccionado."
+                else:
+                    mensaje = "Los datos de la venta no son válidos. Verifique los campos indicados."
+
+                return JSONResponse(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    content={
+                        "message": mensaje,
+                        "success": False,
+                        "data": None
+                    }
+                )
+
+        return manejar_validacion
+
+
+# CONFIGURAR EL ROUTER DEL MICROSERVICIO DE VENTAS
+router = APIRouter(
+    prefix="/api/v1/ventas",
+    tags=["Gestión de ventas"],
+    route_class=RutaValidacionVenta
+)
+
+
+# 1. CONSULTAR TODAS LAS VENTAS REGISTRADAS Y BUSCAR POR NÚMERO, CLIENTE O FECHA
+@router.get(
+    "/",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar y listar ventas registradas",
+    description=(
+        "Obtiene el listado de ventas registradas con su identificador, fecha, "
+        "información del cliente y valor total. Permite filtrar opcionalmente por "
+        "número de venta, nombre/identificación del cliente o fecha (YYYY-MM-DD)."
+    ),
+    responses={
+        200: {
+            "description": "Consulta de ventas exitosa, sin registros o sin coincidencias",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "con_registros": {
+                            "summary": "Ventas encontradas",
+                            "value": {
+                                "message": "Consulta de ventas exitosa",
+                                "data": [
+                                    {
+                                        "id": 1,
+                                        "id_venta": 1,
+                                        "cliente_id": 10,
+                                        "estado": "confirmada",
+                                        "fecha": "2026-10-25",
+                                        "cliente": {
+                                            "id_cliente": 10,
+                                            "nombre": "Cliente de ejemplo",
+                                            "identificacion": "1234567890"
+                                        },
+                                        "total": 150000.0
+                                    }
+                                ],
+                                "success": True
+                            }
+                        },
+                        "sin_registros": {
+                            "summary": "Sin ventas registradas",
+                            "value": {
+                                "message": "No existen ventas registradas",
+                                "data": [],
+                                "success": True
+                            }
+                        },
+                        "sin_coincidencias": {
+                            "summary": "Sin coincidencias en búsqueda",
+                            "value": {
+                                "message": "No se encontraron ventas con los criterios ingresados",
+                                "data": [],
+                                "success": True
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Criterio de búsqueda inválido",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "La fecha de búsqueda debe tener el formato YYYY-MM-DD",
+                        "data": [],
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar las ventas",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible consultar las ventas",
+                        "data": [],
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def ConsultarVentasAPI(
+    numero_venta: int | None = Query(
+        default=None,
+        gt=0,
+        description="NÚMERO O IDENTIFICADOR DE LA VENTA"
+    ),
+    cliente: str | None = Query(
+        default=None,
+        description="NOMBRE O IDENTIFICACIÓN DEL CLIENTE"
+    ),
+    fecha: str | None = Query(
+        default=None,
+        description="FECHA DE LA VENTA EN FORMATO YYYY-MM-DD"
+    ),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    # NORMALIZAR PARÁMETROS CUANDO SE INVOCA DIRECTAMENTE O MEDIANTE FASTAPI
+    numero_filtro = numero_venta if isinstance(numero_venta, int) and not isinstance(numero_venta, bool) else None
+    cliente_filtro = cliente if isinstance(cliente, str) else None
+    fecha_filtro = fecha if isinstance(fecha, str) else None
+
+    if isinstance(numero_venta, bool) or (numero_filtro is not None and numero_filtro <= 0):
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "El número de venta debe ser un entero positivo",
+                "data": [],
+                "success": False
+            }
+        )
+
+    if cliente_filtro is not None:
+        cliente_filtro = cliente_filtro.strip()
+        if not cliente_filtro or cliente_filtro.lower() in PALABRAS_PROHIBIDAS:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": "El criterio de búsqueda del cliente no es válido",
+                    "data": [],
+                    "success": False
+                }
+            )
+
+    if fecha_filtro is not None:
+        fecha_filtro = fecha_filtro.strip()
+        if not fecha_filtro or fecha_filtro.lower() in PALABRAS_PROHIBIDAS:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": "La fecha de búsqueda debe tener el formato YYYY-MM-DD",
+                    "data": [],
+                    "success": False
+                }
+            )
+        try:
+            datetime.strptime(fecha_filtro, "%Y-%m-%d")
+        except ValueError:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "message": "La fecha de búsqueda debe tener el formato YYYY-MM-DD",
+                    "data": [],
+                    "success": False
+                }
+            )
+
+    hay_filtros = any(
+        criterio is not None for criterio in (numero_filtro, cliente_filtro, fecha_filtro)
+    )
+
+    try:
+        ventas = ventaServicio.ConsultarVentasServicio(
+            numero_filtro,
+            cliente_filtro,
+            fecha_filtro
+        )
+
+        if not ventas:
+            mensaje = (
+                "No se encontraron ventas con los criterios ingresados"
+                if hay_filtros
+                else "No existen ventas registradas"
+            )
+            return {
+                "message": mensaje,
+                "data": [],
+                "success": True
+            }
+
+        return {
+            "message": "Consulta de ventas exitosa",
+            "data": ventas,
+            "success": True
+        }
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible consultar las ventas",
+                "data": [],
+                "success": False
+            }
+        )
+
+
+# 2. REGISTRAR UNA NUEVA VENTA ASOCIADA A UN CLIENTE EN ESTADO PENDIENTE
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar una venta asociada a un cliente",
+    description=(
+        "Inicia el registro de una nueva venta en estado pendiente asociándola a un "
+        "cliente previamente registrado en el sistema. Permite continuar posteriormente "
+        "con el registro de productos y cantidades."
+    ),
+    responses={
+        201: {
+            "description": "Venta iniciada correctamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Venta iniciada correctamente",
+                        "data": {
+                            "venta_id": 1,
+                            "cliente_id": 1,
+                            "estado": "pendiente",
+                            "productos": []
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "El cliente seleccionado no existe",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El cliente seleccionado no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        422: {
+            "description": "Falta el cliente o los datos de la solicitud son inválidos",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "cliente_faltante": {
+                            "summary": "No se seleccionó un cliente",
+                            "value": {
+                                "message": "El cliente es obligatorio. Seleccione un cliente para continuar.",
+                                "success": False,
+                                "errors": [
+                                    {
+                                        "campo": "cliente",
+                                        "mensaje": "Debe seleccionar un cliente registrado para iniciar la venta."
+                                    }
+                                ]
+                            }
+                        },
+                        "json_invalido": {
+                            "summary": "Solicitud con JSON mal formado",
+                            "value": {
+                                "message": "Envíe un JSON válido con el identificador del cliente seleccionado.",
+                                "success": False,
+                                "errors": [
+                                    {
+                                        "campo": "solicitud",
+                                        "mensaje": "El cuerpo debe tener un formato JSON válido."
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al registrar la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible registrar la venta",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def RegistrarVentaAPI(
+    datos: VentaRegistro,
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        venta = ventaServicio.RegistrarVentaServicio(datos.model_dump())
+        return {
+            "message": "Venta iniciada correctamente",
+            "data": venta,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible registrar la venta",
+                "data": None,
+                "success": False
+            }
+        )
+
+
+# 3. CONSULTAR UNA VENTA POR SU IDENTIFICADOR
+@router.get(
+    "/{venta_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar el detalle de una venta por ID",
+    description=(
+        "Obtiene la información completa de una venta seleccionada: identificador, "
+        "fecha, cliente asociado, productos, cantidades, precios unitarios, subtotales y total."
+    ),
+    responses={
+        200: {
+            "description": "Consulta de venta exitosa",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Consulta de venta exitosa",
+                        "data": {
+                            "id": 1,
+                            "id_venta": 1,
+                            "cliente_id": 1,
+                            "estado": "confirmada",
+                            "fecha": "2026-10-25",
+                            "cliente": {
+                                "id_cliente": 1,
+                                "nombre": "Juan Perez",
+                                "identificacion": "1234567890"
+                            },
+                            "productos": [
+                                {
+                                    "producto_id": 1,
+                                    "nombre": "Arroz",
+                                    "codigo": "PROD-001",
+                                    "precio_unitario": 3500.0,
+                                    "cantidad": 2,
+                                    "subtotal": 7000.0
+                                }
+                            ],
+                            "total": 7000.0
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Venta no encontrada",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No se encontró la venta solicitada",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al consultar la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible consultar la venta",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def ObtenerVentaPorIdAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        venta = ventaServicio.ObtenerVentaPorIdServicio(venta_id)
+
+        if venta is None:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={
+                    "message": "No se encontró la venta solicitada",
+                    "data": None,
+                    "success": False
+                }
+            )
+
+        return {
+            "message": "Consulta de venta exitosa",
+            "data": venta,
+            "success": True
+        }
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible consultar la venta",
+                "data": None,
+                "success": False
+            }
+        )
+
+
+# 4. CONSULTAR EL DETALLE DE PRODUCTOS Y CANTIDADES DE UNA VENTA
+@router.get(
+    "/{venta_id}/detalles",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar detalle de una venta",
+    description="Obtiene los productos y cantidades agregadas al detalle de una venta."
+)
+def ConsultarDetalleVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        detalles = ventaServicio.ConsultarDetalleVentaServicio(venta_id)
+
+        if not detalles:
+            return {
+                "message": "El detalle de la venta está vacío",
+                "data": [],
+                "success": True
+            }
+
+        return {
+            "message": "Consulta del detalle de la venta exitosa",
+            "data": detalles,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "data": [],
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible consultar el detalle de la venta",
+                "data": [],
+                "success": False
+            }
+        )
+
+
+# 5. AGREGAR UN PRODUCTO Y CANTIDAD AL DETALLE DE UNA VENTA PENDIENTE
+@router.post(
+    "/{venta_id}/detalles",
+    status_code=status.HTTP_201_CREATED,
+    summary="Agregar producto y cantidad al detalle de una venta",
+    description=(
+        "Agrega un producto registrado y su cantidad (entero positivo) al detalle "
+        "de una venta en estado pendiente. Si el producto ya existe en el detalle, "
+        "acumula la cantidad."
+    ),
+    responses={
+        201: {
+            "description": "Producto agregado correctamente al detalle de la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Producto agregado correctamente al detalle de la venta",
+                        "data": {
+                            "venta_id": 1,
+                            "producto_id": 15,
+                            "cantidad": 2
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Venta o producto no encontrado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El producto seleccionado no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "La venta ya fue confirmada y no permite modificaciones",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No se puede modificar el detalle de una venta que ya fue confirmada",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al agregar el producto al detalle",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible agregar el producto al detalle de la venta",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def AgregarDetalleVentaAPI(
+    datos: DetalleVentaAgregar,
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        detalle = ventaServicio.AgregarDetalleVentaServicio(
+            venta_id,
+            datos.model_dump()
+        )
+        return {
+            "message": "Producto agregado correctamente al detalle de la venta",
+            "data": detalle,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible agregar el producto al detalle de la venta",
+                "data": None,
+                "success": False
+            }
+        )
+
+
+# 6. MODIFICAR LA CANTIDAD DE UN PRODUCTO EN EL DETALLE DE UNA VENTA PENDIENTE
+@router.put(
+    "/{venta_id}/detalles/{producto_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Modificar la cantidad de un producto en el detalle",
+    description="Actualiza la cantidad de un producto previamente agregado al detalle de una venta pendiente."
+)
+def ActualizarDetalleVentaAPI(
+    datos: DetalleVentaActualizar,
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    producto_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DEL PRODUCTO"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        detalle = ventaServicio.ActualizarDetalleVentaServicio(
+            venta_id,
+            producto_id,
+            datos.cantidad
+        )
+        return {
+            "message": "Cantidad del producto actualizada correctamente",
+            "data": detalle,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible actualizar la cantidad del producto",
+                "data": None,
+                "success": False
+            }
+        )
+
+
+# 7. RETIRAR UN PRODUCTO DEL DETALLE DE UNA VENTA PENDIENTE
+@router.delete(
+    "/{venta_id}/detalles/{producto_id}",
+    status_code=status.HTTP_200_OK,
+    summary="Retirar un producto del detalle de una venta",
+    description="Elimina un producto del detalle de una venta pendiente antes de confirmarla."
+)
+def EliminarDetalleVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    producto_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DEL PRODUCTO"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        resultado = ventaServicio.EliminarDetalleVentaServicio(
+            venta_id,
+            producto_id
+        )
+        return {
+            "message": "Producto retirado del detalle de la venta correctamente",
+            "data": resultado,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible retirar el producto del detalle de la venta",
+                "data": None,
+                "success": False
+            }
+        )
+
+
+# 8. CALCULAR SUBTOTALES Y TOTAL DE UNA VENTA
+@router.get(
+    "/{venta_id}/totales",
+    status_code=status.HTTP_200_OK,
+    summary="Calcular subtotales y total de una venta",
+    description=(
+        "Calcula automáticamente el subtotal de cada producto incluido en el detalle "
+        "(subtotal = precio_unitario * cantidad) y el importe total de la venta "
+        "(total_venta = suma de todos los subtotales). Rechaza el cálculo si la venta "
+        "no tiene productos o si algún producto presenta un precio inválido."
+    ),
+    responses={
+        200: {
+            "description": "Cálculo de la venta realizado correctamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Cálculo de la venta realizado correctamente",
+                        "data": {
+                            "venta_id": 1,
+                            "productos": [
+                                {
+                                    "producto_id": 15,
+                                    "nombre": "Producto A",
+                                    "precio_unitario": 10000.0,
+                                    "cantidad": 2,
+                                    "subtotal": 20000.0
+                                },
+                                {
+                                    "producto_id": 18,
+                                    "nombre": "Producto B",
+                                    "precio_unitario": 5000.0,
+                                    "cantidad": 3,
+                                    "subtotal": 15000.0
+                                }
+                            ],
+                            "total_venta": 35000.0
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Venta o producto no encontrado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "La venta seleccionada no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "Detalle vacío, cantidad inválida o precio inválido",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "detalle_vacio": {
+                            "summary": "Venta sin productos",
+                            "value": {
+                                "message": "Debe agregar al menos un producto al detalle de la venta",
+                                "success": False
+                            }
+                        },
+                        "precio_invalido": {
+                            "summary": "Producto con precio inválido",
+                            "value": {
+                                "message": "El producto 'Arroz' presenta un problema con su precio",
+                                "success": False
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al calcular los totales de la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible calcular los totales de la venta",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def CalcularTotalesVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        totales = ventaServicio.CalcularTotalesVentaServicio(venta_id)
+        return {
+            "message": "Cálculo de la venta realizado correctamente",
+            "data": totales,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible calcular los totales de la venta",
+                "data": None,
+                "success": False
+            }
+        )
+
+
+# 9. VALIDAR LA DISPONIBILIDAD DE INVENTARIO ANTES DE CONFIRMAR UNA VENTA
+@router.post(
+    "/{venta_id}/validar-inventario",
+    status_code=status.HTTP_200_OK,
+    summary="Validar disponibilidad de inventario de una venta",
+    description=(
+        "Consulta las existencias actuales de cada producto incluido en la venta "
+        "(o en la lista enviada) y compara las cantidades solicitadas contra el inventario "
+        "disponible antes de permitir la confirmación."
+    ),
+    responses={
+        200: {
+            "description": "Resultado de la validación de inventario de la venta",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "existencias_suficientes": {
+                            "summary": "Todos los productos disponibles",
+                            "value": {
+                                "message": "Validación de inventario realizada correctamente",
+                                "data": {
+                                    "venta_id": 1,
+                                    "disponibilidad_suficiente": True,
+                                    "productos": [
+                                        {
+                                            "producto_id": 15,
+                                            "cantidad_solicitada": 2,
+                                            "existencias_disponibles": 10,
+                                            "disponible": True
+                                        },
+                                        {
+                                            "producto_id": 18,
+                                            "cantidad_solicitada": 3,
+                                            "existencias_disponibles": 8,
+                                            "disponible": True
+                                        }
+                                    ]
+                                },
+                                "success": True
+                            }
+                        },
+                        "existencias_insuficientes": {
+                            "summary": "Uno o más productos sin stock suficiente",
+                            "value": {
+                                "message": "No hay existencias suficientes para todos los productos",
+                                "data": {
+                                    "venta_id": 1,
+                                    "disponibilidad_suficiente": False,
+                                    "productos": [
+                                        {
+                                            "producto_id": 15,
+                                            "cantidad_solicitada": 5,
+                                            "existencias_disponibles": 2,
+                                            "disponible": False
+                                        }
+                                    ]
+                                },
+                                "success": False
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Venta o producto no encontrado",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El producto con ID 999 no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "La venta no tiene productos en su detalle",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Debe agregar al menos un producto al detalle de la venta",
+                        "success": False
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al validar el inventario",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible validar la disponibilidad del inventario",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def ValidarInventarioVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    datos: ValidarInventarioVentaSolicitud | None = Body(default=None),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    try:
+        productos_solicitud = (
+            datos.model_dump()["productos"]
+            if datos is not None and datos.productos is not None
+            else None
+        )
+
+        resultado = ventaServicio.ValidarInventarioVentaServicio(
+            venta_id,
+            productos_solicitud
+        )
+
+        if not resultado["disponibilidad_suficiente"]:
+            return {
+                "message": "No hay existencias suficientes para todos los productos",
+                "data": resultado,
+                "success": False
+            }
+
+        return {
+            "message": "Validación de inventario realizada correctamente",
+            "data": resultado,
+            "success": True
+        }
+
+    except LookupError as error:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except Exception:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible validar la disponibilidad del inventario",
+                "data": None,
+                "success": False
+            }
+        )
+
+
+# 10. CONFIRMAR UNA VENTA Y DESCONTAR EXISTENCIAS DEL INVENTARIO
+@router.post(
+    "/{venta_id}/confirmar",
+    status_code=status.HTTP_200_OK,
+    summary="Confirmar venta y descontar existencias del inventario",
+    description=(
+        "Confirma una venta registrada en estado pendiente y descuenta automáticamente "
+        "las cantidades vendidas del inventario. Valida que la venta exista, que no haya "
+        "sido confirmada previamente, que todos los productos tengan existencias suficientes "
+        "y garantiza consistencia ante errores."
+    ),
+    responses={
+        200: {
+            "description": "Venta confirmada e inventario actualizado correctamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "Venta confirmada e inventario actualizado correctamente",
+                        "data": {
+                            "venta_id": 1,
+                            "estado": "confirmada",
+                            "cliente_id": 1,
+                            "fecha_confirmacion": "2026-11-25T15:10:00",
+                            "subtotal": 26500.0,
+                            "total": 26500.0,
+                            "total_venta": 26500.0,
+                            "inventario_actualizado": True,
+                            "productos": [
+                                {
+                                    "producto_id": 1,
+                                    "cantidad_vendida": 5,
+                                    "existencias_anteriores": 100,
+                                    "existencias_actuales": 95
+                                }
+                            ]
+                        },
+                        "success": True
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "Solicitud de confirmación inválida",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "El identificador de la venta en la solicitud no coincide con el de la ruta",
+                        "success": False
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "La venta seleccionada no existe",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "La venta seleccionada no existe",
+                        "success": False
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "Existencias insuficientes, detalle vacío o venta ya confirmada",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "existencias_insuficientes": {
+                            "summary": "Inventario insuficiente",
+                            "value": {
+                                "message": "No hay suficiente inventario para completar la operación: producto ID 1 (solicitado: 150, disponible: 100)",
+                                "success": False
+                            }
+                        },
+                        "venta_ya_confirmada": {
+                            "summary": "Venta ya confirmada previamente",
+                            "value": {
+                                "message": "La venta ya fue confirmada y sus existencias ya fueron descontadas",
+                                "success": False
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        500: {
+            "description": "Error interno al actualizar el inventario o confirmar la venta",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "message": "No fue posible confirmar la venta y actualizar el inventario",
+                        "success": False
+                    }
+                }
+            }
+        }
+    }
+)
+def ConfirmarVentaAPI(
+    venta_id: int = Path(..., gt=0, description="IDENTIFICADOR NUMÉRICO DE LA VENTA"),
+    datos: ConfirmarVentaSolicitud | None = Body(default=None),
+    usuario_autenticado: dict = Depends(ObtenerSuperadministrador)
+):
+    # VALIDAR QUE SE HAYA CONFIRMADO LA OPERACIÓN SI SE ENVÍA EL INDICADOR confirmar
+    if datos is not None and datos.confirmar is False:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "Debe confirmar la operación enviando confirmar en true",
+                "data": None,
+                "success": False
+            }
+        )
+
+    # VALIDAR COHERENCIA SI SE ENVÍA venta_id EN EL CUERPO DE LA SOLICITUD
+    if datos is not None and datos.venta_id is not None and datos.venta_id != venta_id:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "message": "El identificador de la venta en la solicitud no coincide con el de la ruta",
+                "data": None,
+                "success": False
+            }
+        )
+
+    try:
+        # INVOCAR EL SERVICIO PARA CONFIRMAR LA VENTA Y DESCONTAR EXISTENCIAS
+        resultado = ventaServicio.ConfirmarVentaServicio(venta_id)
+
+        return {
+            "message": "Venta confirmada e inventario actualizado correctamente",
+            "data": resultado,
+            "success": True
+        }
+
+    except LookupError as error:
+        # RETORNAR NO ENCONTRADO SI LA VENTA NO EXISTE
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except ValueError as error:
+        # RETORNAR CONFLICTO SI FALTAN EXISTENCIAS O LA VENTA YA FUE CONFIRMADA
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "message": str(error),
+                "data": None,
+                "success": False
+            }
+        )
+
+    except Exception:
+        # RETORNAR ERROR INTERNO SI FALLA LA ACTUALIZACIÓN DEL INVENTARIO
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "No fue posible confirmar la venta y actualizar el inventario",
+                "data": None,
+                "success": False
+            }
+        )
