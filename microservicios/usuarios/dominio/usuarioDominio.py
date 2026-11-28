@@ -73,6 +73,7 @@ def ActualizarUsuarioDominio(id_usuario: int, nuevos_datos: dict):
     )
 
 
+
 def ConsultarUsuariosDominio():
 
     usuarios = usuarioRepositorio.ObtenerTodosUsuariosRepositorio()
